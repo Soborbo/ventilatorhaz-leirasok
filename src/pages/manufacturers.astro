@@ -1,0 +1,144 @@
+---
+import Layout from '../layouts/Layout.astro';
+import gyartokData from '../data/gyartok.json';
+
+const gyartok = gyartokData.gyartok as Record<string, any>;
+---
+
+<Layout title="Gyártók">
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <h1>Gyártók</h1>
+    <p style="color: var(--color-text-muted); margin: 0;">Gyártói profilok a szövegezési irányelvekhez.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: var(--space-lg);">
+    {Object.entries(gyartok).map(([key, gyarto]) => (
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
+          <div>
+            <h2 style="margin: 0; font-size: 1.25rem;">{gyarto.nev}</h2>
+            <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-xs);">
+              <span style="font-size: 0.75rem; color: var(--color-text-muted);">{gyarto.orszag}</span>
+              {gyarto.alapitas && (
+                <span style="font-size: 0.75rem; color: var(--color-text-muted);">• Alapítva: {gyarto.alapitas}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <p style="font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: var(--space-md);">
+          {gyarto.leiras}
+        </p>
+
+        {gyarto.specialis_technologia && (
+          <div style="background: rgba(37, 99, 235, 0.1); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); margin-bottom: var(--space-md); border-left: 3px solid var(--color-primary);">
+            <span style="font-size: 0.75rem; color: var(--color-primary-light);">
+              <strong>Speciális technológia:</strong> {gyarto.specialis_technologia}
+            </span>
+          </div>
+        )}
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-sm); flex: 1;">
+          <!-- Erősségek -->
+          {gyarto.erossegek && gyarto.erossegek.length > 0 && (
+            <div>
+              <div style="font-size: 0.75rem; color: var(--color-success); font-weight: 600; margin-bottom: var(--space-xs);">Erősségek</div>
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+                {gyarto.erossegek.map((e: string) => (
+                  <span style="font-size: 0.75rem; padding: 2px 8px; background: rgba(16, 185, 129, 0.2); color: var(--color-success); border-radius: 9999px;">
+                    {e}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Gyengeségek -->
+          {gyarto.gyengesegek && gyarto.gyengesegek.length > 0 && (
+            <div>
+              <div style="font-size: 0.75rem; color: var(--color-warning); font-weight: 600; margin-bottom: var(--space-xs);">Gyengeségek</div>
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+                {gyarto.gyengesegek.map((g: string) => (
+                  <span style="font-size: 0.75rem; padding: 2px 8px; background: rgba(245, 158, 11, 0.2); color: var(--color-warning); border-radius: 9999px;">
+                    {g}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Hangsúlyos témák -->
+          {gyarto.hangsulyos_temak && gyarto.hangsulyos_temak.length > 0 && (
+            <div>
+              <div style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600; margin-bottom: var(--space-xs);">Hangsúlyozható</div>
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+                {gyarto.hangsulyos_temak.map((t: string) => (
+                  <span style="font-size: 0.75rem; padding: 2px 8px; background: var(--color-bg-tertiary); color: var(--color-text-muted); border-radius: 9999px;">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Kerülendő -->
+          {gyarto.kerulendo && gyarto.kerulendo.length > 0 && (
+            <div>
+              <div style="font-size: 0.75rem; color: var(--color-error); font-weight: 600; margin-bottom: var(--space-xs);">Kerülendő</div>
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+                {gyarto.kerulendo.map((k: string) => (
+                  <span style="font-size: 0.75rem; padding: 2px 8px; background: rgba(239, 68, 68, 0.2); color: var(--color-error); border-radius: 9999px;">
+                    {k}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <!-- Tudta? facts -->
+        {gyarto.tudta_facts && gyarto.tudta_facts.length > 0 && (
+          <div style="margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--color-border);">
+            <div style="font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600; margin-bottom: var(--space-xs);">Tudta?</div>
+            {gyarto.tudta_facts.map((fact: string) => (
+              <p style="font-size: 0.75rem; color: var(--color-text-muted); margin: 0 0 var(--space-xs); padding-left: var(--space-sm); border-left: 2px solid var(--color-border);">
+                {fact}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <!-- Összesítés -->
+  <div class="card" style="margin-top: var(--space-lg); background: rgba(37, 99, 235, 0.1); border-color: var(--color-primary);">
+    <h3 style="margin: 0 0 var(--space-md); color: var(--color-primary-light);">Gyártók országonként</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: var(--space-lg);">
+      <div style="text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary-light);">
+          {Object.values(gyartok).filter((g: any) => g.orszag === 'Németország').length}
+        </div>
+        <div style="font-size: 0.875rem; color: var(--color-text-muted);">Német</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary-light);">
+          {Object.values(gyartok).filter((g: any) => g.orszag === 'Olaszország').length}
+        </div>
+        <div style="font-size: 0.875rem; color: var(--color-text-muted);">Olasz</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary-light);">
+          {Object.values(gyartok).filter((g: any) => g.orszag === 'Lengyelország').length}
+        </div>
+        <div style="font-size: 0.875rem; color: var(--color-text-muted);">Lengyel</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-primary-light);">
+          {Object.values(gyartok).filter((g: any) => g.orszag.includes('Ukrajna')).length}
+        </div>
+        <div style="font-size: 0.875rem; color: var(--color-text-muted);">Ukrán</div>
+      </div>
+    </div>
+  </div>
+</Layout>

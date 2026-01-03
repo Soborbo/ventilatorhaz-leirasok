@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DataExtractor from '../components/DataExtractor';
+---
+
+<Layout title="Adat extrakció" activePhase={1}>
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <h1>Adat extrakció</h1>
+    <p style="color: var(--color-text-muted); margin: 0;">Töltsd fel a gyártói PDF-et vagy add meg a linket, és az AI kiszedi a műszaki adatokat.</p>
+  </div>
+  
+  <DataExtractor client:load />
+</Layout>

@@ -1,0 +1,252 @@
+{
+  "usp_categories": {
+    "vizvedelem": {
+      "name": "Vízvédelem",
+      "usps": [
+        {
+          "id": "IPX4_VEDELEM",
+          "condition": { "field": "ip_vedelem", "operator": "in", "value": ["IPX4", "IP44", "IP34"] },
+          "title": "Fröccsenő víz ellen védett (IPX4)",
+          "paragraph_1": "Az IPX4 védettségi besorolásnak köszönhetően a készülék biztonságosan használható párás és nedves helyiségekben.",
+          "paragraph_2": "A fürdőszobai zónák közül a 2. és 3. zónában szerelhető fel, tehát a zuhanytól vagy kádtól legalább 60 cm távolságra.",
+          "image_suggestion": "schema_zona_IP-44.jpg"
+        },
+        {
+          "id": "IPX5_VEDELEM",
+          "condition": { "field": "ip_vedelem", "operator": "in", "value": ["IPX5", "IP65"] },
+          "title": "Sugár víz ellen is védett (IPX5)",
+          "paragraph_1": "Az IPX5 védettség azt jelenti, hogy a készülék még az erősebb vízsugaraknak is ellenáll – nem csak a párának vagy fröccsenő víznek.",
+          "paragraph_2": "Ez lehetővé teszi az 1. zónában való felszerelést is, közvetlenül a zuhanyzó vagy kád fölé. Mosodákban, uszodáknál vagy ipari környezetben is ideális választás.",
+          "image_suggestion": "ipx5.jpg"
+        }
+      ]
+    },
+    "zajszint": {
+      "name": "Zajszint",
+      "usps": [
+        {
+          "id": "ULTRA_HALK",
+          "condition": { "field": "zajszint_kategoria", "operator": "eq", "value": "ultra_halk" },
+          "title": "Ultra halk működés – akár alvás közben is",
+          "paragraph_1": "Mindössze {zajszint_db} dB zajszinttel ez a ventilátor a legcsendesebb kategóriába tartozik – ez halkabb, mint a suttogás.",
+          "paragraph_2": "Ideális választás hálószobához közeli fürdőkhöz vagy éjszakai használathoz, ahol a zaj zavaró lehet.",
+          "image_suggestion": "halk-ventilator.jpg",
+          "variables": ["zajszint_db"]
+        },
+        {
+          "id": "HALK_RELATIV",
+          "condition": { "field": "zajszint_kategoria", "operator": "in", "value": ["halk", "ultra_halk"] },
+          "title": "{diff}%-kal halkabb a kategória átlagánál",
+          "paragraph_1": "{zajszint_db} dB zajszintjével ez a ventilátor a {kategoria} kategória átlaga ({atlag_zajszint} dB) alatt teljesít.",
+          "paragraph_2": "A gyakorlatban ez azt jelenti, hogy a működése nem zavaró – nyugodtan bekapcsolhatod este is anélkül, hogy felébresztené a háztartás többi tagját.",
+          "image_suggestion": "halk-ventilator.jpg",
+          "variables": ["diff", "zajszint_db", "kategoria", "atlag_zajszint"]
+        }
+      ]
+    },
+    "csapagy": {
+      "name": "Csapágy és élettartam",
+      "usps": [
+        {
+          "id": "GOLYOSCSAPAGY",
+          "condition": { "field": "csapagy_tipus", "operator": "eq", "value": "golyóscsapágy" },
+          "title": "Golyóscsapágy a hosszú élettartamért",
+          "paragraph_1": "A golyóscsapágyas kialakítás több előnnyel jár a hagyományos siklócsapágyhoz képest: hosszabb élettartam, csendesebb működés, és ami fontos – mennyezetre is szerelhető.",
+          "paragraph_2": "A siklócsapágyas ventilátorokat csak vízszintesen (falra) szabad szerelni, különben hamar tönkremennek. A golyóscsapágyasnál nincs ilyen megkötés.",
+          "image_suggestion": "golyoscsapagy.jpg"
+        },
+        {
+          "id": "ELETTARTAM",
+          "condition": { "field": "elettartam_ora", "operator": "gt", "value": 0 },
+          "title": "{elettartam_ora} üzemóra élettartam",
+          "paragraph_1": "A gyártó tesztjei alapján a motor akár {elettartam_ora} üzemóra élettartamot is biztosíthat.",
+          "paragraph_2": "Napi 8 órás használat mellett ez körülbelül {elettartam_ev} év folyamatos működést jelent.",
+          "image_suggestion": "hosszu-elettartam.jpg",
+          "variables": ["elettartam_ora", "elettartam_ev"]
+        }
+      ]
+    },
+    "szerelhetoseg": {
+      "name": "Szerelhetőség",
+      "usps": [
+        {
+          "id": "FAL_MENNYEZET",
+          "condition": { "field": "szerelhetoseg", "operator": "eq", "value": "fal_es_mennyezet" },
+          "title": "Falra és mennyezetre egyaránt szerelhető",
+          "paragraph_1": "A ventilátor falra és mennyezetre is felszerelhető, így rugalmasan illeszkedik bármilyen fürdőszoba kialakításhoz.",
+          "paragraph_2": "Ez különösen hasznos, ha a fal nem alkalmas a szerelésre (pl. csempe mögött vezetékek), vagy ha a mennyezeti elszívás esztétikailag jobban illik a térhez.",
+          "image_suggestion": "fal-mennyezet-szereles.jpg"
+        },
+        {
+          "id": "EGYSZERU_SZERELES",
+          "condition": { "field": "always", "operator": "eq", "value": true },
+          "title": "Egyszerű, gyors felszerelés",
+          "paragraph_1": "A szabványos csőátmérő és a praktikus rögzítési pontok lehetővé teszik a gyors, problémamentes telepítést.",
+          "paragraph_2": "Egy gyakorlott szerelő 15-20 perc alatt felszereli – de a mellékelt útmutató alapján barkácsolók is megbirkóznak vele.",
+          "image_suggestion": "egyszeru-szereles.jpg"
+        }
+      ]
+    },
+    "visszacsapo": {
+      "name": "Visszacsapó szelep",
+      "usps": [
+        {
+          "id": "VISSZACSAPO_SZELEP",
+          "condition": { "field": "visszacsapo_szelep", "operator": "eq", "value": true },
+          "title": "Visszacsapó szelep a kellemetlen szagok ellen",
+          "paragraph_1": "A beépített visszacsapó szelep megakadályozza, hogy a szomszédos lakásokból vagy a szellőzőrendszerből visszaáramoljanak a kellemetlen szagok.",
+          "paragraph_2": "Amikor a ventilátor nem üzemel, a szelep automatikusan lezár, így a hideg levegőt és a külső szagokat is kint tartja.",
+          "image_suggestion": "visszacsapo-szelep.jpg"
+        }
+      ]
+    },
+    "tisztitas": {
+      "name": "Tisztítás és karbantartás",
+      "usps": [
+        {
+          "id": "KONNYU_TISZTITAS",
+          "condition": { "field": "konnyu_tisztitas", "operator": "eq", "value": true },
+          "title": "Egyszerű tisztítás, kevés karbantartás",
+          "paragraph_1": "A sima előlap és a levehető burkolat egyszerűvé teszi a rendszeres tisztítást – elég egy nedves törlőkendővel áttörölni.",
+          "paragraph_2": "A szűrő (ha van) pillanatok alatt kivehető és vízzel átmosható.",
+          "image_suggestion": "konnyu-tisztitas.jpg"
+        },
+        {
+          "id": "ANTISZTATIKUS",
+          "condition": { "field": "antisztatikus", "operator": "eq", "value": true },
+          "title": "Antisztatikus ház – kevesebb por",
+          "paragraph_1": "Az antisztatikus műanyag ház csökkenti a por lerakódását a készülék felületén.",
+          "paragraph_2": "Ez nem csak esztétikai előny: kevesebb por = ritkább tisztítás és hosszabb élettartam.",
+          "image_suggestion": "antisztatikus.jpg"
+        }
+      ]
+    },
+    "vezerles": {
+      "name": "Vezérlés és funkciók",
+      "usps": [
+        {
+          "id": "IDORELE",
+          "condition": { "field": "funkciok", "operator": "contains", "value": "időrelé" },
+          "title": "Időrelé – utánfutás a teljes párátlanításért",
+          "paragraph_1": "Az időrelés változat a világítás kikapcsolása után még beállítható ideig (általában 2-30 perc) tovább működik.",
+          "paragraph_2": "Így a fürdés után keletkezett pára is teljesen eltávozik, még ha el is felejtjük manuálisan kikapcsolni.",
+          "image_suggestion": "idorele.jpg"
+        },
+        {
+          "id": "PARAERZEKELO",
+          "condition": { "field": "funkciok", "operator": "contains", "value": "páraérzékelő" },
+          "title": "Páraérzékelő – automatikus bekapcsolás",
+          "paragraph_1": "A beépített páraérzékelő figyeli a levegő nedvességtartalmát, és automatikusan bekapcsolja a ventilátort, amikor a páratartalom emelkedik.",
+          "paragraph_2": "Nem kell kapcsolóval bajlódni, és sosem felejted el bekapcsolni – a ventilátor magától intézkedik.",
+          "image_suggestion": "paraerzekelo.jpg"
+        },
+        {
+          "id": "MOZGASERZEKELO",
+          "condition": { "field": "funkciok", "operator": "contains", "value": "mozgásérzékelő" },
+          "title": "Mozgásérzékelő – belépsz, beindul",
+          "paragraph_1": "A mozgásérzékelős változat automatikusan bekapcsol, amikor valaki belép a helyiségbe.",
+          "paragraph_2": "Ideális WC-kbe, ahol rövid tartózkodás alatt is fontos a gyors légcsere.",
+          "image_suggestion": "mozgaserzekelo.jpg"
+        }
+      ]
+    },
+    "energia": {
+      "name": "Energia",
+      "usps": [
+        {
+          "id": "ALACSONY_FOGYASZTAS",
+          "condition": { "field": "teljesitmeny_kategoria", "operator": "eq", "value": "takarekos" },
+          "title": "Mindössze {teljesitmeny_w}W fogyasztás",
+          "paragraph_1": "A {teljesitmeny_w} wattos teljesítményfelvétel kifejezetten alacsony ebben a kategóriában.",
+          "paragraph_2": "Napi 4 órás használattal éves szinten körülbelül {eves_fogyasztas} kWh-t fogyaszt, ami mai árakon {eves_koltseg} Ft villanyköltséget jelent.",
+          "image_suggestion": "energiatakarekos.jpg",
+          "variables": ["teljesitmeny_w", "eves_fogyasztas", "eves_koltseg"]
+        }
+      ]
+    },
+    "dizajn": {
+      "name": "Dizájn",
+      "usps": [
+        {
+          "id": "MODERN_DIZAJN",
+          "condition": { "field": "dizajn_orientalt", "operator": "eq", "value": true },
+          "title": "Modern, letisztult megjelenés",
+          "paragraph_1": "A minimalista dizájn bármilyen fürdőszoba enteriőrbe illeszkedik. Nem tűnik \"technikainak\" – inkább a helyiség természetes részének hat.",
+          "paragraph_2": "Fehér színben kapható, de sok gyártónál választható színes vagy üveg előlap is.",
+          "image_suggestion": "modern-dizajn.jpg"
+        },
+        {
+          "id": "FEDETT_LAPAT",
+          "condition": { "field": "fedett_lapat", "operator": "eq", "value": true },
+          "title": "Fedett lapát – esztétikus és praktikus",
+          "paragraph_1": "A fedett ventilátorlapátnak köszönhetően a por lerakódása nem látszik kívülről, így a készülék évek múltán is ápolt marad.",
+          "paragraph_2": "Ez nem csak esztétikai előny: a fedett kialakítás a légáramlást is egyenletesebbé teszi.",
+          "image_suggestion": "fedett-lapat.jpg"
+        }
+      ]
+    },
+    "ipari_specialis": {
+      "name": "Ipari specialitások",
+      "usps": [
+        {
+          "id": "MAGAS_NYOMAS",
+          "condition": { "field": "nyomas_pa", "operator": "gt", "value": 150 },
+          "title": "Magasabb nyomás, mint egy axiális ventilátor",
+          "paragraph_1": "A radiális kialakítás akár {nyomas_pa} Pa nyomást is képes előállítani – míg egy axiális ventilátor jellemzően csak 15-30 Pa-t.",
+          "paragraph_2": "A gyakorlatban ez azt jelenti, hogy ott is hatékonyan működik, ahol egy propelleres ventilátor már \"megfullad\": kanyargós légcsatornákban, több elágazással, vagy társasházi légaknában.",
+          "image_suggestion": "radialis-nyomas.jpg",
+          "variables": ["nyomas_pa"]
+        },
+        {
+          "id": "HOSSZU_CSOHOSSZ",
+          "condition": { "field": "ajanlott_csohossz_m", "operator": "gt", "value": 3 },
+          "title": "Akár {ajanlott_csohossz_m} méteres csőszakaszhoz is",
+          "paragraph_1": "Az axiális ventilátorok hatékonysága 1-2 méter csőhossz után drasztikusan csökken. Ez a radiális ventilátor stabil jelleggörbét biztosít még hosszabb csőszakaszokon is.",
+          "paragraph_2": "Társasházi légaknába, álmennyezeti elvezetéshez vagy több helyiséget összekötő rendszerekhez ideális választás.",
+          "image_suggestion": "hosszu-cso.jpg",
+          "variables": ["ajanlott_csohossz_m"]
+        },
+        {
+          "id": "HOVEDELELEM",
+          "condition": { "field": "hovedelem_auto_ujraindulas", "operator": "eq", "value": true },
+          "title": "Beépített hővédelem automatikus újraindítással",
+          "paragraph_1": "Ha a motor túlmelegszik – például eltömődött csőszakasz vagy túlterhelés miatt – a beépített hővédelem automatikusan leállítja a ventilátort.",
+          "paragraph_2": "A lehűlés után a készülék magától újraindul, nem kell kézzel resetelni vagy szerelőt hívni.",
+          "image_suggestion": "hovedelem.jpg"
+        },
+        {
+          "id": "SZELES_HOMERSEKLET",
+          "condition": { "field": "min_uzemi_homerseklet", "operator": "lte", "value": -20 },
+          "title": "Széles üzemi hőmérsékleti tartomány: {min_homerseklet}°C-tól {max_homerseklet}°C-ig",
+          "paragraph_1": "A széles hőmérsékleti tűrés lehetővé teszi a használatot fűtetlen raktárakban, hűtőházakban vagy melegebb ipari környezetben is.",
+          "paragraph_2": "Ez jelentős előny a hasonló árú ventilátorokkal szemben, amelyek általában szűkebb hőmérsékleti tartományban működnek.",
+          "image_suggestion": "homerseklet-tartomany.jpg",
+          "variables": ["min_homerseklet", "max_homerseklet"]
+        }
+      ]
+    },
+    "gyarto_specifikus": {
+      "name": "Gyártó-specifikus",
+      "usps": [
+        {
+          "id": "PEREMELSZIVAS_ELICENT",
+          "condition": { "field": "gyarto", "operator": "eq", "value": "Elicent" },
+          "title": "Peremelszívás – egyenletesebb légáramlás",
+          "paragraph_1": "A hagyományos ventilátorok a levegőt középen szívják be, ami turbulenciát okoz. Az Elicent szabadalmaztatott peremelszívásos technológiája a teljes felületen egyenletesen szívja be a levegőt.",
+          "paragraph_2": "Az eredmény: hatékonyabb párátlanítás és csendesebb működés.",
+          "image_suggestion": "peremelszivas.jpg",
+          "gyarto_only": "Elicent"
+        },
+        {
+          "id": "UV_ALLO_BLAUBERG",
+          "condition": { "field": "gyarto", "operator": "eq", "value": "Blauberg" },
+          "title": "UV-álló műanyag – nem sárgul meg",
+          "paragraph_1": "A Blauberg UV-álló ABS műanyag házat használ, amely ellenáll a napsugárzásnak és nem sárgul meg az évek során.",
+          "paragraph_2": "Különösen fontos ablak melletti felszerelésnél, ahol a közvetlen napfény más műanyagokat gyorsan elszínez.",
+          "image_suggestion": "uv-allo.jpg",
+          "gyarto_only": "Blauberg"
+        }
+      ]
+    }
+  }
+}

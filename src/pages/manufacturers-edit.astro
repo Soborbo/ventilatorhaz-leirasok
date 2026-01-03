@@ -1,0 +1,18 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ManufacturersEditor from '../components/ManufacturersEditor';
+---
+
+<Layout title="Gyártók Szerkesztő">
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1>Gyártók Szerkesztő</h1>
+        <p style="color: var(--color-text-muted); margin: 0;">Gyártói profilok szerkesztése.</p>
+      </div>
+      <a href="/manufacturers" class="btn btn-secondary">← Vissza</a>
+    </div>
+  </div>
+
+  <ManufacturersEditor client:load />
+</Layout>

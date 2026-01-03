@@ -1,0 +1,149 @@
+{
+  "style_rules": {
+    "hangvetel": {
+      "kotelezo": [
+        "Barátságos, de szakértői – nem lekezelő, nem túl formális",
+        "Problem-aware – a vásárló problémájából indulunk (penész, pára, zaj, szag, hőség)",
+        "Tényszerű – minden állítást adattal támasztunk alá",
+        "Segítőkész – a vásárló döntését segítjük, nem nyomulunk"
+      ]
+    },
+    "tilos_marketing_frazisok": [
+      "kiváló választás",
+      "prémium minőség",
+      "tökéletes megoldás",
+      "ideális bármilyen térbe",
+      "kivételes teljesítmény",
+      "maximális komfort",
+      "a legjobb a piacon",
+      "profi megoldás"
+    ],
+    "tilos_abszolut_allitasok": {
+      "halk": {
+        "helyette": "{X}%-kal halkabb a kategória átlagánál ({Y} dB)",
+        "megjegyzes": "Csak relatív pozícionálás!"
+      },
+      "csendes működés": {
+        "helyette": "{X} dB zajszint – ez halkabb, mint a suttogás",
+        "megjegyzes": "Konkrét szám + összehasonlítás"
+      },
+      "energiatakarékos": {
+        "helyette": "{X}W fogyasztás, ami éves szinten {Y} Ft",
+        "megjegyzes": "Konkrét fogyasztás + költség"
+      },
+      "tartós": {
+        "helyette": "{X} óra élettartam VAGY golyóscsapágyas kialakítás",
+        "megjegyzes": "Konkrét adat vagy technikai jellemző"
+      },
+      "nagy légszállítás": {
+        "helyette": "{X} m³/h – elegendő {Y} m² helyiséghez",
+        "megjegyzes": "Szám + kontextus"
+      },
+      "erős": {
+        "helyette": "{X} Pa nyomás, ami {Y} m csőhosszhoz elég",
+        "megjegyzes": "Szám + alkalmazási terület"
+      }
+    },
+    "tilos_bizonytalansag": [
+      "valószínűleg",
+      "általában",
+      "tipikusan",
+      "körülbelül",
+      "nagyjából",
+      "akár"
+    ],
+    "kotelezo_elemek": {
+      "termek_nev_emlites": {
+        "min": 4,
+        "max": 6,
+        "megjegyzes": "Természetesen beillesztve a szövegbe"
+      },
+      "termek_tipus_emlites": {
+        "min": 3,
+        "max": 4,
+        "pelda": ["axiális ventilátor", "fürdőszoba ventilátor", "radiális csőventilátor"]
+      },
+      "szamadatok_kontextusban": {
+        "pelda_jo": "32 dB zajszint – ez halkabb, mint egy suttogás, és 8%-kal a kategória átlaga alatt van",
+        "pelda_rossz": "32 dB zajszint"
+      }
+    },
+    "szoveghossz": {
+      "rovid_leiras": {
+        "mondatok": "2-3",
+        "usp_min": 2,
+        "megjegyzes": "Rövid, lényegretörő, USP-fókuszú"
+      },
+      "reszletes_leiras": {
+        "szo_min": 400,
+        "szo_max": 600,
+        "bekezdes_max_mondat": 3
+      },
+      "usp_blokk": {
+        "mondat_min": 2,
+        "mondat_max": 4
+      }
+    },
+    "formazas": {
+      "felkover": {
+        "hasznalat": "Csak kulcsszavakra, max 2-3 szövegblokkonként",
+        "tilos": "Túlzott használat"
+      },
+      "dolt": {
+        "hasznalat": "Szinte soha, csak idézeteknél"
+      },
+      "felsorolas": {
+        "hasznalat": "Csak ha tényleg lista (3+ elem)",
+        "tilos": "Folyószöveg helyettesítése"
+      },
+      "szamok": {
+        "1-9": "Betűvel (három év garancia)",
+        "10+": "Számmal (15 wattos motor)",
+        "mertekegyseg": "Mindig szám (32 dB, 97 m³/h)"
+      }
+    },
+    "problem_aware_temak": [
+      {
+        "problema": "Penész",
+        "pelda_kerdes": "A falak már penészesek a fürdőben"
+      },
+      {
+        "problema": "Pára",
+        "pelda_kerdes": "A tükör mindig bepárásodik"
+      },
+      {
+        "problema": "Szag",
+        "pelda_kerdes": "A WC szaga bejön a lakásba"
+      },
+      {
+        "problema": "Zaj",
+        "pelda_kerdes": "A régi ventilátor túl hangos"
+      },
+      {
+        "problema": "Rossz levegő",
+        "pelda_kerdes": "A lakásban állandóan áporodott a levegő"
+      },
+      {
+        "problema": "Hideg visszaáramlás",
+        "pelda_kerdes": "Télen a ventilátoron keresztül jön be a hideg"
+      }
+    ]
+  },
+  "adat_statuszok": {
+    "biztos": {
+      "jel": "✓",
+      "szovegbe_kerulhet": true,
+      "megjegyzes": "PDF-ben explicit szerepel"
+    },
+    "kovetkeztetett": {
+      "jel": "⚠️",
+      "szovegbe_kerulhet": false,
+      "megjegyzes": "Logikailag következik, de nem explicit - kérdezz rá!"
+    },
+    "hianyzo": {
+      "jel": "❌",
+      "szovegbe_kerulhet": false,
+      "megjegyzes": "Nincs adat - NE találd ki!"
+    }
+  }
+}

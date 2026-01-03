@@ -1,0 +1,172 @@
+---
+import Layout from '../layouts/Layout.astro';
+import benchmarkData from '../data/benchmark.json';
+
+const categories = (benchmarkData as any).categories;
+const ipVedelem = (benchmarkData as any).ip_vedelem;
+const csapagyTipus = (benchmarkData as any).csapagy_tipus;
+
+function formatRange(data: any, unit: string): string {
+  if (data.max) {
+    return "< " + data.max + " " + unit;
+  }
+  return "> " + data.min + " " + unit;
+}
+
+function formatPrice(data: any): string {
+  if (data.max) {
+    return "< " + data.max.toLocaleString('hu-HU') + " Ft";
+  }
+  return "> " + data.min.toLocaleString('hu-HU') + " Ft";
+}
+
+const categoryEntries = Object.entries(categories);
+const ipEntries = Object.entries(ipVedelem);
+const csapagyEntries = Object.entries(csapagyTipus);
+---
+
+<Layout title="Benchmark adatok">
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <h1>Benchmark adatok</h1>
+    <p style="color: var(--color-text-muted); margin: 0;">Kategóriánkénti referencia értékek a relatív pozicionáláshoz.</p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+    {categoryEntries.map(([key, category]: any) => (
+      <div class="card">
+        <div class="card-header">
+          <h2 style="margin: 0; font-size: 1.125rem;">{category.name}</h2>
+          <span class="badge badge-success">{key}</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md);">
+          {category.zajszint_db && (
+            <div style="background: var(--color-bg-tertiary); padding: var(--space-md); border-radius: var(--radius-md);">
+              <div style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: var(--space-xs);">Zajszint</div>
+              <div style="font-size: 1.5rem; font-weight: 700;">{category.zajszint_atlag} <span style="font-size: 0.875rem; font-weight: 400;">dB átlag</span></div>
+              <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--color-text-muted);">
+                {Object.entries(category.zajszint_db).map(([level, data]: any) => (
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                    <span>{data.label}</span>
+                    <span>{formatRange(data, "dB")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {category.legszallitas_m3h && (
+            <div style="background: var(--color-bg-tertiary); padding: var(--space-md); border-radius: var(--radius-md);">
+              <div style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: var(--space-xs);">Légszállítás</div>
+              <div style="font-size: 1.5rem; font-weight: 700;">{category.legszallitas_atlag || '-'} <span style="font-size: 0.875rem; font-weight: 400;">m³/h átlag</span></div>
+              <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--color-text-muted);">
+                {Object.entries(category.legszallitas_m3h).map(([level, data]: any) => (
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                    <span>{data.label}</span>
+                    <span>{formatRange(data, "m³/h")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {category.teljesitmeny_w && (
+            <div style="background: var(--color-bg-tertiary); padding: var(--space-md); border-radius: var(--radius-md);">
+              <div style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: var(--space-xs);">Fogyasztás</div>
+              <div style="font-size: 1.5rem; font-weight: 700;">{category.teljesitmeny_atlag || '-'} <span style="font-size: 0.875rem; font-weight: 400;">W átlag</span></div>
+              <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--color-text-muted);">
+                {Object.entries(category.teljesitmeny_w).map(([level, data]: any) => (
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                    <span>{data.label}</span>
+                    <span>{formatRange(data, "W")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {category.ar_ft && (
+            <div style="background: var(--color-bg-tertiary); padding: var(--space-md); border-radius: var(--radius-md);">
+              <div style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: var(--space-xs);">Ár kategóriák</div>
+              <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--color-text-muted);">
+                {Object.entries(category.ar_ft).map(([level, data]: any) => (
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                    <span>{data.label}</span>
+                    <span>{formatPrice(data)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {category.hatasfok_percent && (
+            <div style="background: var(--color-bg-tertiary); padding: var(--space-md); border-radius: var(--radius-md);">
+              <div style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: var(--space-xs);">Hatásfok</div>
+              <div style="font-size: 1.5rem; font-weight: 700;">{category.hatasfok_atlag || '-'} <span style="font-size: 0.875rem; font-weight: 400;">% átlag</span></div>
+              <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--color-text-muted);">
+                {Object.entries(category.hatasfok_percent).map(([level, data]: any) => (
+                  <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                    <span>{data.label}</span>
+                    <span>{formatRange(data, "%")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- IP védelem referencia -->
+  <div class="card" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+      <h2 style="margin: 0; font-size: 1.125rem;">IP védelem referencia</h2>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Kód</th>
+          <th>Jelentés</th>
+          <th>Használható</th>
+        </tr>
+      </thead>
+      <tbody>
+        {ipEntries.map(([code, data]: any) => (
+          <tr>
+            <td><strong>{code}</strong></td>
+            <td>{data.jelentes}</td>
+            <td style="color: var(--color-text-muted);">{data.hasznalhato}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Csapágy típusok -->
+  <div class="card" style="margin-top: var(--space-lg);">
+    <div class="card-header">
+      <h2 style="margin: 0; font-size: 1.125rem;">Csapágy típusok</h2>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Típus</th>
+          <th>Élettartam</th>
+          <th>Szerelhetőség</th>
+          <th>Ár</th>
+        </tr>
+      </thead>
+      <tbody>
+        {csapagyEntries.map(([type, data]: any) => (
+          <tr>
+            <td><strong>{type === 'siklocsapagy' ? 'Siklócsapágy' : 'Golyóscsapágy'}</strong></td>
+            <td>{data.elettartam_ora} óra</td>
+            <td>{data.szerelhetoseg}</td>
+            <td style="color: var(--color-text-muted);">{data.ar_kategoria}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</Layout>

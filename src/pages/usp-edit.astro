@@ -1,0 +1,18 @@
+---
+import Layout from '../layouts/Layout.astro';
+import UspEditor from '../components/UspEditor';
+---
+
+<Layout title="USP Könyvtár Szerkesztő">
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1>USP Könyvtár Szerkesztő</h1>
+        <p style="color: var(--color-text-muted); margin: 0;">USP szövegek és feltételek szerkesztése.</p>
+      </div>
+      <a href="/usp-library" class="btn btn-secondary">← Vissza</a>
+    </div>
+  </div>
+
+  <UspEditor client:load />
+</Layout>

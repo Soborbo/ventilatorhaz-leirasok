@@ -1,0 +1,85 @@
+---
+import Layout from '../layouts/Layout.astro';
+import uspLibrary from '../data/usp-library.json';
+
+const categories = uspLibrary.usp_categories as Record<string, any>;
+---
+
+<Layout title="USP Könyvtár">
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <h1>USP Könyvtár</h1>
+    <p style="color: var(--color-text-muted); margin: 0;">Előre definiált USP blokkok a termékleírásokhoz.</p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+    {Object.entries(categories).map(([categoryKey, category]) => (
+      <div class="card">
+        <div class="card-header">
+          <h2 style="margin: 0; font-size: 1.125rem;">{category.name}</h2>
+          <span class="badge badge-success">{category.usps.length} USP</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+          {category.usps.map((usp: any) => (
+            <div style="background: var(--color-bg-tertiary); padding: var(--space-md); border-radius: var(--radius-md); border-left: 3px solid var(--color-primary);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-sm);">
+                <h3 style="margin: 0; font-size: 1rem; color: var(--color-primary-light);">{usp.title}</h3>
+                <code style="font-size: 0.7rem; padding: 2px 6px; background: var(--color-bg); border-radius: var(--radius-sm); color: var(--color-text-muted);">{usp.id}</code>
+              </div>
+
+              <p style="margin: 0 0 var(--space-sm); font-size: 0.875rem; color: var(--color-text);">
+                {usp.paragraph_1}
+              </p>
+
+              {usp.paragraph_2 && (
+                <p style="margin: 0 0 var(--space-sm); font-size: 0.875rem; color: var(--color-text-muted);">
+                  {usp.paragraph_2}
+                </p>
+              )}
+
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-md); padding-top: var(--space-sm); border-top: 1px solid var(--color-border);">
+                <div style="font-size: 0.75rem; color: var(--color-text-muted);">
+                  <strong>Feltétel:</strong>
+                  <code style="background: var(--color-bg); padding: 2px 4px; border-radius: 2px;">
+                    {usp.condition.field} {usp.condition.operator} {JSON.stringify(usp.condition.value)}
+                  </code>
+                </div>
+
+                {usp.variables && usp.variables.length > 0 && (
+                  <div style="font-size: 0.75rem; color: var(--color-text-muted);">
+                    <strong>Változók:</strong> {usp.variables.join(', ')}
+                  </div>
+                )}
+
+                {usp.image_suggestion && (
+                  <div style="font-size: 0.75rem; color: var(--color-text-muted);">
+                    <strong>Kép:</strong> {usp.image_suggestion}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- Összesítés -->
+  <div class="card" style="margin-top: var(--space-lg); background: rgba(37, 99, 235, 0.1); border-color: var(--color-primary);">
+    <h3 style="margin: 0 0 var(--space-md); color: var(--color-primary-light);">Összesítés</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-md);">
+      <div style="text-align: center;">
+        <div style="font-size: 2rem; font-weight: 700; color: var(--color-primary-light);">
+          {Object.values(categories).reduce((sum: number, cat: any) => sum + cat.usps.length, 0)}
+        </div>
+        <div style="font-size: 0.875rem; color: var(--color-text-muted);">Összes USP</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-size: 2rem; font-weight: 700; color: var(--color-primary-light);">
+          {Object.keys(categories).length}
+        </div>
+        <div style="font-size: 0.875rem; color: var(--color-text-muted);">Kategória</div>
+      </div>
+    </div>
+  </div>
+</Layout>

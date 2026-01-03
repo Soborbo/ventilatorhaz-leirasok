@@ -1,0 +1,124 @@
+{
+  "gyartok": {
+    "elicent": {
+      "nev": "Elicent",
+      "orszag": "Olaszország",
+      "alapitas": 1955,
+      "leiras": "Olasz dizájn, közel 70 év tapasztalat a légtechnikában",
+      "erossegek": ["dizájn", "peremelszívás", "csendesség", "kompakt méret"],
+      "gyengesegek": ["nem ipari felhasználásra"],
+      "hangsulyos_temak": ["fürdőszoba", "lakótér", "esztétika", "olasz minőség"],
+      "kerulendo": ["extrém teljesítmény narratíva", "ipari alkalmazás"],
+      "specialis_technologia": "Peremelszívás (szabadalmaztatott)",
+      "tudta_facts": [
+        "Az Elicent 1955 óta van a piacon, tehát közel 70 éves tapasztalatuk van ventilátorok fejlesztésében.",
+        "Az Elicent az egyetlen gyártó, aki peremelszívásos technológiát használ lakossági ventilátoraiban."
+      ]
+    },
+    "maico": {
+      "nev": "Maico",
+      "orszag": "Németország",
+      "alapitas": 1927,
+      "leiras": "Német prémium minőség, közel 100 év tapasztalat",
+      "erossegek": ["prémium minőség", "hosszú élettartam", "ipari referenciák", "német mérnöki precizitás"],
+      "gyengesegek": ["magasabb ár"],
+      "hangsulyos_temak": ["professzionális", "tartósság", "megbízhatóság", "német minőség"],
+      "kerulendo": ["ár/érték narratíva", "belépő szint"],
+      "specialis_technologia": "EC motorok, intelligens vezérlés",
+      "tudta_facts": [
+        "A Maico 1927-ben alakult Németországban, és azóta a légtechnika egyik vezető gyártójává vált.",
+        "A Maico ventilátorokat számos ipari és középületi projektben használják világszerte."
+      ]
+    },
+    "blauberg": {
+      "nev": "Blauberg",
+      "orszag": "Németország/Ukrajna",
+      "alapitas": 1990,
+      "leiras": "Német-ukrán együttműködés, kiváló ár/érték arány",
+      "erossegek": ["ár/érték arány", "UV-álló ABS műanyag", "széles választék"],
+      "gyengesegek": [],
+      "hangsulyos_temak": ["megfizethető minőség", "tartós műanyag", "praktikus"],
+      "kerulendo": ["prémium narratíva"],
+      "specialis_technologia": "UV-álló ABS műanyag ház",
+      "tudta_facts": [
+        "A Blauberg UV-álló ABS műanyag házat használ, amely nem sárgul meg az évek során.",
+        "A Blauberg ventilátorok német tervezésűek, és az egyik legjobb ár/érték arányt kínálják a piacon."
+      ]
+    },
+    "awenta": {
+      "nev": "Awenta",
+      "orszag": "Lengyelország",
+      "alapitas": 1992,
+      "leiras": "Lengyel gyártó, kiváló ár/érték arány, EU minőség",
+      "erossegek": ["ár/érték bajnok", "EU gyártás", "széles választék", "cserélhető előlapok"],
+      "gyengesegek": ["kevésbé ismert márka"],
+      "hangsulyos_temak": ["megfizethető", "praktikus", "cserélhető dizájn"],
+      "kerulendo": ["prémium/luxus narratíva"],
+      "specialis_technologia": "Cserélhető előlapok (design variációk)",
+      "tudta_facts": [
+        "Az Awenta cserélhető előlapokat kínál, így ugyanahhoz a ventilátorhoz többféle dizájn választható.",
+        "Az Awenta Lengyelországban gyártja termékeit, EU minőségi szabványok szerint."
+      ]
+    },
+    "vents": {
+      "nev": "Vents",
+      "orszag": "Ukrajna",
+      "alapitas": 1999,
+      "leiras": "Ukrán gyártó, a legnagyobb választék, megbízható alap termékek",
+      "erossegek": ["legnagyobb választék", "minden méretre és funkcióra van termék", "megbízható"],
+      "gyengesegek": ["nem prémium kategória"],
+      "hangsulyos_temak": ["széles választék", "megbízható", "praktikus"],
+      "kerulendo": ["prémium narratíva"],
+      "specialis_technologia": null,
+      "tudta_facts": [
+        "A Vents az egyik legnagyobb légtechnikai gyártó Európában, több mint 2000 termékkel a kínálatában.",
+        "A Vents termékeket több mint 100 országba exportálják világszerte."
+      ]
+    },
+    "helios": {
+      "nev": "Helios",
+      "orszag": "Németország",
+      "alapitas": 1922,
+      "leiras": "Tradicionális német gyártó, 100+ év tapasztalat",
+      "erossegek": ["tradíció", "megbízhatóság", "német minőség"],
+      "gyengesegek": ["magasabb ár"],
+      "hangsulyos_temak": ["hagyomány", "megbízhatóság", "német mérnökség"],
+      "kerulendo": ["olcsó narratíva"],
+      "specialis_technologia": null,
+      "tudta_facts": [
+        "A Helios 1922 óta gyárt ventilátorokat Németországban – több mint 100 év tapasztalat.",
+        "A Helios az egyik legrégebbi működő ventilátorgyártó Európában."
+      ]
+    },
+    "vortice": {
+      "nev": "Vortice",
+      "orszag": "Olaszország",
+      "alapitas": 1954,
+      "leiras": "Olasz gyártó, design és innováció",
+      "erossegek": ["olasz dizájn", "innováció", "széles termékpaletta"],
+      "gyengesegek": [],
+      "hangsulyos_temak": ["dizájn", "innováció", "olasz stílus"],
+      "kerulendo": [],
+      "specialis_technologia": null,
+      "tudta_facts": [
+        "A Vortice 1954-ben alakult Olaszországban, és azóta a design-orientált ventilátorok egyik vezető gyártója.",
+        "A Vortice termékeket számos nemzetközi dizájn díjjal ismerték el."
+      ]
+    },
+    "reventon": {
+      "nev": "Reventon",
+      "orszag": "Lengyelország",
+      "alapitas": null,
+      "leiras": "Lengyel ipari légtechnikai gyártó, megbízható ár/érték arány",
+      "erossegek": ["ipari minőség", "kedvező ár", "robusztus kivitel"],
+      "gyengesegek": ["kevésbé ismert lakossági piacon"],
+      "hangsulyos_temak": ["ipari", "megbízható", "ár/érték"],
+      "kerulendo": ["prémium narratíva", "dizájn fókusz"],
+      "specialis_technologia": null,
+      "tudta_facts": [
+        "A Reventon lengyel légtechnikai gyártó, több évtizedes tapasztalattal a szellőztetési rendszerek területén.",
+        "A Reventon termékeket elsősorban ipari és kereskedelmi alkalmazásokra tervezik."
+      ]
+    }
+  }
+}

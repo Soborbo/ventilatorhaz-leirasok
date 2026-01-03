@@ -1,0 +1,266 @@
+{
+  "template_type": "ipari",
+  "description": "Ipari, csőventilátorok, radiális - részletes műszaki adatokkal, jelleggörbékkel, FAQ-val",
+  
+  "sections": {
+    "intro": {
+      "required": true,
+      "fields": {
+        "youtube_embed_url": {
+          "type": "url",
+          "required": false,
+          "placeholder": "https://www.youtube.com/embed/XXXXXXXXXXX",
+          "description": "YouTube videó embed URL (ha van)"
+        },
+        "headline": {
+          "type": "text",
+          "required": true,
+          "max_length": 120,
+          "placeholder": "Reventon FR-DF radiális csőventilátor: megbízható megoldás közepes légtechnikai rendszerekhez",
+          "description": "Figyelemfelkeltő H3 cím a termék nevével"
+        },
+        "intro_paragraph_1": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 500,
+          "description": "Első bekezdés - problem-aware bevezető, tipikus use-case"
+        },
+        "intro_paragraph_2": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 500,
+          "description": "Második bekezdés - fő műszaki előnyök (nyomás, védettség)"
+        }
+      }
+    },
+    
+    "gyari_adatlap": {
+      "required": true,
+      "fields": {
+        "termek_nev": {
+          "type": "text",
+          "required": true,
+          "description": "Termék neve az adatlap szövegéhez"
+        },
+        "pdf_url": {
+          "type": "url",
+          "required": true,
+          "placeholder": "https://shop.unas.hu/.../adatlap.pdf",
+          "description": "Gyári adatlap PDF link"
+        },
+        "meretrajz_url": {
+          "type": "url",
+          "required": true,
+          "description": "Méretrajz kép URL"
+        },
+        "meretrajz_alt": {
+          "type": "text",
+          "required": true,
+          "description": "Méretrajz kép alt szöveg"
+        }
+      }
+    },
+    
+    "tudta": {
+      "required": true,
+      "fields": {
+        "tudta_text": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 400,
+          "description": "Érdekes tény a gyártóról vagy termékről"
+        }
+      }
+    },
+    
+    "muszaki_adatok_tabla": {
+      "required": true,
+      "description": "Összehasonlító táblázat az összes változatról",
+      "fields": {
+        "table_title": {
+          "type": "text",
+          "default": "Műszaki adatok",
+          "description": "Táblázat szekció címe"
+        },
+        "table_subtitle": {
+          "type": "text",
+          "default": "Az összes változat részletes specifikációja",
+          "description": "Táblázat szekció alcíme"
+        },
+        "variants": {
+          "type": "array",
+          "min_count": 1,
+          "max_count": 10,
+          "description": "Termékváltozatok listája (pl. FR-100-DF, FR-125-DF, stb.)"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Műszaki paraméterek - soronként",
+          "standard_rows": [
+            {"name": "Csőátmérő", "unit": "mm", "per_variant": true},
+            {"name": "Max. légszállítás", "unit": "m³/h", "per_variant": true, "highlight": true},
+            {"name": "Max. nyomás", "unit": "Pa", "per_variant": true},
+            {"name": "Max. teljesítményfelvétel", "unit": "W", "per_variant": true},
+            {"name": "Max. áramfelvétel", "unit": "A", "per_variant": true},
+            {"name": "Fordulatszám", "unit": "ford/perc", "per_variant": true},
+            {"name": "Zajszint", "unit": "dB(A)", "per_variant": true, "highlight": true},
+            {"name": "Feszültség", "unit": "V / Hz / Fázis", "per_variant": false, "common_value": "230 / 50 / 1"},
+            {"name": "Max. üzemi hőmérséklet", "unit": "°C", "per_variant": false},
+            {"name": "Védettségi osztály", "unit": "-", "per_variant": false},
+            {"name": "Szigetelési osztály", "unit": "-", "per_variant": false},
+            {"name": "Tömeg", "unit": "kg", "per_variant": true}
+          ],
+          "dimension_rows": [
+            {"name": "Hossz", "unit": "mm", "per_variant": true},
+            {"name": "Csonk hossza", "unit": "mm", "per_variant": true},
+            {"name": "Teljes átmérő", "unit": "mm", "per_variant": true}
+          ]
+        }
+      }
+    },
+    
+    "jelleggorbek": {
+      "required": false,
+      "description": "Jelleggörbe képek szekció",
+      "fields": {
+        "section_title": {
+          "type": "text",
+          "default": "Jelleggörbék",
+          "description": "Szekció címe"
+        },
+        "section_subtitle": {
+          "type": "text",
+          "default": "Kattintson a képre a nagyításhoz",
+          "description": "Szekció alcíme"
+        },
+        "curves": {
+          "type": "array",
+          "min_count": 1,
+          "max_count": 10,
+          "fields_per_item": {
+            "image_url": {
+              "type": "url",
+              "required": true,
+              "description": "Jelleggörbe kép URL"
+            },
+            "title": {
+              "type": "text",
+              "required": true,
+              "description": "Jelleggörbe címe (pl. 'FR-100-DF jelleggörbéje')"
+            },
+            "alt": {
+              "type": "text",
+              "required": true,
+              "description": "Kép alt szöveg"
+            }
+          }
+        }
+      }
+    },
+    
+    "usp_blocks": {
+      "required": true,
+      "min_count": 5,
+      "max_count": 15,
+      "fields_per_block": {
+        "image_url": {
+          "type": "url",
+          "required": true,
+          "description": "USP illusztráció kép URL"
+        },
+        "image_alt": {
+          "type": "text",
+          "required": true,
+          "description": "Kép alt szöveg"
+        },
+        "title": {
+          "type": "text",
+          "required": true,
+          "max_length": 100,
+          "description": "USP cím (benefit-orientált, H3)"
+        },
+        "paragraph_1": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 500,
+          "description": "Első bekezdés - probléma és megoldás"
+        },
+        "paragraph_2": {
+          "type": "textarea",
+          "required": false,
+          "max_length": 500,
+          "description": "Második bekezdés (opcionális) - technikai részlet"
+        }
+      }
+    },
+    
+    "faq": {
+      "required": false,
+      "description": "Gyakran Ismételt Kérdések + Schema markup",
+      "fields": {
+        "section_title": {
+          "type": "text",
+          "default": "Gyakran Ismételt Kérdések",
+          "description": "FAQ szekció címe"
+        },
+        "questions": {
+          "type": "array",
+          "min_count": 3,
+          "max_count": 10,
+          "fields_per_item": {
+            "question": {
+              "type": "text",
+              "required": true,
+              "max_length": 150,
+              "description": "A kérdés szövege"
+            },
+            "answer": {
+              "type": "textarea",
+              "required": true,
+              "max_length": 600,
+              "description": "A válasz szövege"
+            }
+          }
+        }
+      }
+    }
+  },
+  
+  "fixed_sections": {
+    "ventilatorhaz_bemutatkozo": {
+      "description": "Fix szekció - nem változik",
+      "image": "https://shop.unas.hu/shop_ordered/55564/pic/nemesventilatorhaz-csapata.webp",
+      "title": "Vásároljon Magyarország egyik legmegbízhatóbb légtechnikai áruházából",
+      "text": "A Ventilátorház a Budapest 18. kerületében, a Királyhágó utca 30. található. Sokszoros díjnyertes cég vagyunk, több évtizedes tapasztalattal és hibátlan véleményekkel. Ha kérdése van, hívja munkatársainkat bizalommal a +36-70-369-9944 telefonszámon!",
+      "cta_callback_url": "https://www.nemesventilatorhaz.hu/visszahivaskero",
+      "cta_callback_text": "Ingyenes tanácsadást kérek",
+      "cta_phone": "tel:+36703699944",
+      "cta_phone_text": "Felhívom most"
+    },
+    "trustindex": {
+      "script": "<script defer async src='https://cdn.trustindex.io/loader.js?cbff376529ad876c29862863c17'></script>"
+    },
+    "miert_ajanjuk_header": {
+      "html": "<div style=\"text-align: center; padding: 20px 0; border-bottom: 2px solid #333; margin-bottom: 20px;\"><h1 style=\"margin: 0;\">Miért ajánljuk?</h1></div>"
+    }
+  },
+  
+  "schema_templates": {
+    "faq_schema": {
+      "description": "FAQ Schema markup template",
+      "template": {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": "{{faq_items}}"
+      },
+      "faq_item_template": {
+        "@type": "Question",
+        "name": "{{question}}",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "{{answer}}"
+        }
+      }
+    }
+  }
+}

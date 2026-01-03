@@ -1,0 +1,114 @@
+{
+  "categories": {
+    "furdoszoba_axialis": {
+      "name": "Fürdőszoba / WC ventilátorok (axiális)",
+      "zajszint_db": {
+        "ultra_halk": { "max": 26, "label": "Ultra halk", "text_allowed": ["kiemelkedően halk", "a legcsendesebb kategóriában"] },
+        "halk": { "min": 26, "max": 32, "label": "Halk", "text_allowed": ["halk", "csendes működés"] },
+        "atlagos": { "min": 32, "max": 38, "label": "Átlagos", "text_allowed": [] },
+        "zajos": { "min": 38, "label": "Zajos", "text_allowed": [] }
+      },
+      "zajszint_atlag": 35,
+      "legszallitas_m3h": {
+        "alacsony": { "max": 80, "label": "Alacsony", "helyiseg": "kis WC (max 4 m²)" },
+        "kozepes": { "min": 80, "max": 120, "label": "Közepes", "helyiseg": "átlagos fürdő (4-8 m²)" },
+        "magas": { "min": 120, "max": 180, "label": "Magas", "helyiseg": "nagy fürdő (8-15 m²)" },
+        "nagyon_magas": { "min": 180, "label": "Nagyon magas", "helyiseg": "több helyiség, hosszú cső" }
+      },
+      "legszallitas_atlag": 100,
+      "teljesitmeny_w": {
+        "takarekos": { "max": 10, "label": "Takarékos", "text_allowed": ["alacsony fogyasztás"] },
+        "atlagos": { "min": 10, "max": 18, "label": "Átlagos", "text_allowed": [] },
+        "magas": { "min": 18, "label": "Magas", "text_allowed": [] }
+      },
+      "teljesitmeny_atlag": 14,
+      "ar_ft": {
+        "belepo": { "max": 8000, "label": "Belépő", "text_allowed": ["megfizethető", "ár/érték"] },
+        "kozep": { "min": 8000, "max": 15000, "label": "Közép", "text_allowed": [] },
+        "premium": { "min": 15000, "max": 25000, "label": "Prémium", "text_allowed": ["minőségi", "tartós befektetés"] },
+        "luxus": { "min": 25000, "label": "Luxus", "text_allowed": ["csúcskategória", "professzionális"] }
+      }
+    },
+    "furdoszoba_radialis": {
+      "name": "Fürdőszoba / WC ventilátorok (radiális / centrifugális)",
+      "zajszint_db": {
+        "halk": { "max": 35, "label": "Halk" },
+        "atlagos": { "min": 35, "max": 45, "label": "Átlagos" },
+        "zajos": { "min": 45, "label": "Zajos" }
+      },
+      "zajszint_atlag": 40,
+      "legszallitas_m3h": {
+        "kozepes": { "max": 150, "label": "Közepes" },
+        "magas": { "min": 150, "max": 250, "label": "Magas" },
+        "nagyon_magas": { "min": 250, "label": "Nagyon magas" }
+      },
+      "legszallitas_atlag": 180,
+      "nyomas_pa": {
+        "alacsony": { "max": 100, "label": "Alacsony", "csohossz": "max 3m" },
+        "kozepes": { "min": 100, "max": 200, "label": "Közepes", "csohossz": "3-8m" },
+        "magas": { "min": 200, "label": "Magas", "csohossz": "8m+" }
+      }
+    },
+    "csoventilator": {
+      "name": "Csőventilátorok",
+      "zajszint_db": {
+        "halk": { "max": 30, "label": "Halk" },
+        "atlagos": { "min": 30, "max": 40, "label": "Átlagos" },
+        "zajos": { "min": 40, "label": "Zajos" }
+      },
+      "zajszint_atlag": 35,
+      "legszallitas_m3h": {
+        "kis": { "max": 150, "label": "Kis" },
+        "kozepes": { "min": 150, "max": 400, "label": "Közepes" },
+        "nagy": { "min": 400, "max": 1000, "label": "Nagy" },
+        "ipari": { "min": 1000, "label": "Ipari" }
+      }
+    },
+    "ipari": {
+      "name": "Ipari ventilátorok",
+      "zajszint_db": {
+        "halk": { "max": 45, "label": "Halk" },
+        "atlagos": { "min": 45, "max": 60, "label": "Átlagos" },
+        "hangos": { "min": 60, "max": 75, "label": "Hangos" },
+        "nagyon_hangos": { "min": 75, "label": "Nagyon hangos" }
+      },
+      "zajszint_atlag": 55,
+      "legszallitas_m3h": {
+        "kis": { "max": 500, "label": "Kis" },
+        "kozepes": { "min": 500, "max": 2000, "label": "Közepes" },
+        "nagy": { "min": 2000, "max": 5000, "label": "Nagy" },
+        "extra_nagy": { "min": 5000, "label": "Extra nagy" }
+      }
+    },
+    "hovisszanyero": {
+      "name": "Hővisszanyerős szellőztető",
+      "hatasfok_percent": {
+        "alapszintu": { "max": 70, "label": "Alapszintű", "text_allowed": [] },
+        "jo": { "min": 70, "max": 85, "label": "Jó", "text_allowed": ["hatékony hővisszanyerés"] },
+        "kivalo": { "min": 85, "max": 92, "label": "Kiváló", "text_allowed": ["magas hatásfok"] },
+        "csucs": { "min": 92, "label": "Csúcs", "text_allowed": ["kiemelkedő hatásfok"] }
+      },
+      "hatasfok_atlag": 80
+    }
+  },
+  "ip_vedelem": {
+    "IP20": { "jelentes": "Nincs vízvédelem", "hasznalhato": "Csak száraz hely" },
+    "IP34": { "jelentes": "Fröccsenő víz ellen védett", "hasznalhato": "Fürdő 2-3. zóna" },
+    "IPX4": { "jelentes": "Fröccsenő víz ellen védett", "hasznalhato": "Fürdő 2-3. zóna" },
+    "IP44": { "jelentes": "Por + fröccsenő víz", "hasznalhato": "Fürdő 2-3. zóna" },
+    "IPX5": { "jelentes": "Sugár víz ellen védett", "hasznalhato": "Fürdő 1-2-3. zóna" },
+    "IP65": { "jelentes": "Porálló + sugár víz", "hasznalhato": "Kültér, ipari" }
+  },
+  "csapagy_tipus": {
+    "siklocsapagy": {
+      "elettartam_ora": 20000,
+      "szerelhetoseg": "Csak fal (vízszintes)",
+      "ar_kategoria": "Olcsóbb"
+    },
+    "golyoscsapagy": {
+      "elettartam_ora": "30000-40000",
+      "szerelhetoseg": "Fal + mennyezet",
+      "ar_kategoria": "Drágább"
+    }
+  }
+}

@@ -1,0 +1,162 @@
+---
+interface Props {
+  title: string;
+  activePhase?: number;
+}
+
+const { title, activePhase = 1 } = Astro.props;
+
+const phases = [
+  { num: 1, name: 'Adat extrakció', slug: '' },
+  { num: 2, name: 'Pozicionálás', slug: 'position' },
+  { num: 3, name: 'USP kiválasztás', slug: 'usp' },
+  { num: 4, name: 'HTML generálás', slug: 'generate' },
+];
+---
+
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
+  <title>{title} | Ventilátorház App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <a href="/" style="display: flex; align-items: center; gap: var(--space-sm); text-decoration: none;">
+          <img src="/logo.png" alt="Ventilátorház" style="height: 32px; width: auto;" />
+        </a>
+        <button class="theme-toggle" id="theme-toggle" title="Téma váltás">
+          <span id="theme-icon">🌙</span>
+        </button>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--color-text-muted); margin: var(--space-xs) 0 0 0;">Termékleírás Generátor</p>
+      
+      <nav class="sidebar-nav" style="margin-top: var(--space-xl);">
+        <div class="nav-section">
+          <div class="nav-section-title" style="font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: var(--space-sm); text-transform: uppercase; letter-spacing: 0.05em;">
+            Workflow
+          </div>
+          {phases.map((phase) => (
+            <a 
+              href={`/${phase.slug}`}
+              class:list={[
+                'nav-link',
+                { active: activePhase === phase.num },
+                { completed: activePhase > phase.num }
+              ]}
+              style={`
+                display: flex;
+                align-items: center;
+                gap: var(--space-sm);
+                padding: var(--space-sm) var(--space-md);
+                margin-bottom: var(--space-xs);
+                border-radius: var(--radius-md);
+                text-decoration: none;
+                font-size: 0.875rem;
+                color: ${activePhase === phase.num ? 'white' : 'var(--color-text-muted)'};
+                background: ${activePhase === phase.num ? 'var(--color-primary)' : 'transparent'};
+                transition: all 0.15s ease;
+              `}
+            >
+              <span style={`
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                font-size: 0.75rem;
+                font-weight: 600;
+                background: ${activePhase > phase.num ? 'var(--color-success)' : activePhase === phase.num ? 'rgba(255,255,255,0.2)' : 'var(--color-bg-tertiary)'};
+                color: ${activePhase >= phase.num ? 'white' : 'var(--color-text-muted)'};
+              `}>
+                {activePhase > phase.num ? '✓' : phase.num}
+              </span>
+              {phase.name}
+            </a>
+          ))}
+        </div>
+        
+        <div class="nav-section" style="margin-top: var(--space-xl);">
+          <div class="nav-section-title" style="font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: var(--space-sm); text-transform: uppercase; letter-spacing: 0.05em;">
+            Adatok
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: var(--space-xs);">
+            <a href="/benchmark" class="nav-link" style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); text-decoration: none; font-size: 0.875rem; color: var(--color-text-muted); flex: 1;">
+              📊 Benchmark
+            </a>
+            <a href="/benchmark-edit" title="Szerkesztés" style="padding: 4px 8px; font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none; border-radius: var(--radius-sm);">✏️</a>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: var(--space-xs);">
+            <a href="/usp-library" class="nav-link" style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); text-decoration: none; font-size: 0.875rem; color: var(--color-text-muted); flex: 1;">
+              📚 USP könyvtár
+            </a>
+            <a href="/usp-edit" title="Szerkesztés" style="padding: 4px 8px; font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none; border-radius: var(--radius-sm);">✏️</a>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: var(--space-xs);">
+            <a href="/manufacturers" class="nav-link" style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); text-decoration: none; font-size: 0.875rem; color: var(--color-text-muted); flex: 1;">
+              🏭 Gyártók
+            </a>
+            <a href="/manufacturers-edit" title="Szerkesztés" style="padding: 4px 8px; font-size: 0.75rem; color: var(--color-text-muted); text-decoration: none; border-radius: var(--radius-sm);">✏️</a>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="sidebar-footer" style="position: absolute; bottom: var(--space-lg); left: var(--space-lg); right: var(--space-lg);">
+        <div style="padding: var(--space-md); background: var(--color-bg-tertiary); border-radius: var(--radius-md); font-size: 0.75rem;">
+          <div style="color: var(--color-text-muted); margin-bottom: var(--space-xs);">API státusz</div>
+          <div style="display: flex; align-items: center; gap: var(--space-xs);">
+            <span style="width: 8px; height: 8px; background: var(--color-success); border-radius: 50%;"></span>
+            Claude API aktív
+          </div>
+        </div>
+      </div>
+    </aside>
+    
+    <main class="main-content">
+      <slot />
+    </main>
+  </div>
+  
+  <style is:global>
+    @import '../styles/global.css';
+  </style>
+
+  <script>
+    // Theme toggle logic
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const html = document.documentElement;
+
+    // Check saved theme or system preference
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+      html.setAttribute('data-theme', 'dark');
+      if (themeIcon) themeIcon.textContent = '☀️';
+    }
+
+    themeToggle?.addEventListener('click', () => {
+      const isDark = html.getAttribute('data-theme') === 'dark';
+
+      if (isDark) {
+        html.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+        if (themeIcon) themeIcon.textContent = '🌙';
+      } else {
+        html.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+        if (themeIcon) themeIcon.textContent = '☀️';
+      }
+    });
+  </script>
+</body>
+</html>

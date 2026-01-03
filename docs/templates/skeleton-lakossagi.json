@@ -1,0 +1,129 @@
+{
+  "template_type": "lakossagi",
+  "description": "Fürdőszoba, WC, kishelyiség ventilátorok - egyszerűbb struktúra, USP-fókuszú",
+  
+  "sections": {
+    "intro": {
+      "required": true,
+      "fields": {
+        "youtube_embed_url": {
+          "type": "url",
+          "required": false,
+          "placeholder": "https://www.youtube.com/embed/XXXXXXXXXXX",
+          "description": "YouTube videó embed URL (ha van)"
+        },
+        "headline": {
+          "type": "text",
+          "required": true,
+          "max_length": 100,
+          "placeholder": "ELICENT ELIX 100: A modern szellőztetés mestere",
+          "description": "Figyelemfelkeltő H3 cím a termék nevével"
+        },
+        "intro_paragraph_1": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 500,
+          "description": "Első bekezdés - problem-aware bevezető, mire jó a termék"
+        },
+        "intro_paragraph_2": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 500,
+          "description": "Második bekezdés - fő előnyök kiemelése (2-3 USP röviden)"
+        }
+      }
+    },
+    
+    "gyari_adatlap": {
+      "required": true,
+      "fields": {
+        "pdf_url": {
+          "type": "url",
+          "required": true,
+          "placeholder": "https://shop.unas.hu/.../adatlap.pdf",
+          "description": "Gyári adatlap PDF link"
+        },
+        "meretrajz_url": {
+          "type": "url",
+          "required": true,
+          "placeholder": "https://www.nemesventilatorhaz.hu/.../meret.png",
+          "description": "Méretrajz kép URL"
+        },
+        "meretrajz_alt": {
+          "type": "text",
+          "required": true,
+          "placeholder": "Elicent Elix 100 méretrajz",
+          "description": "Méretrajz kép alt szöveg"
+        }
+      }
+    },
+    
+    "tudta": {
+      "required": true,
+      "fields": {
+        "tudta_text": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 300,
+          "placeholder": "Az Elicent 1955 óta van a piacon, tehát közel 70 éves tapasztalatuk van ventilátorok fejlesztésében.",
+          "description": "Érdekes tény a gyártóról vagy termékről"
+        }
+      }
+    },
+    
+    "usp_blocks": {
+      "required": true,
+      "min_count": 5,
+      "max_count": 12,
+      "fields_per_block": {
+        "image_url": {
+          "type": "url",
+          "required": true,
+          "description": "USP illusztráció kép URL"
+        },
+        "image_alt": {
+          "type": "text",
+          "required": true,
+          "description": "Kép alt szöveg"
+        },
+        "title": {
+          "type": "text",
+          "required": true,
+          "max_length": 80,
+          "description": "USP cím (benefit-orientált, H3)"
+        },
+        "paragraph_1": {
+          "type": "textarea",
+          "required": true,
+          "max_length": 400,
+          "description": "Első bekezdés - probléma és megoldás"
+        },
+        "paragraph_2": {
+          "type": "textarea",
+          "required": false,
+          "max_length": 400,
+          "description": "Második bekezdés (opcionális) - technikai részlet"
+        }
+      }
+    }
+  },
+  
+  "fixed_sections": {
+    "ventilatorhaz_bemutatkozo": {
+      "description": "Fix szekció - nem változik",
+      "image": "https://shop.unas.hu/shop_ordered/55564/pic/nemesventilatorhaz-csapata.webp",
+      "title": "Vásároljon Magyarország egyik legmegbízhatóbb légtechnikai áruházából",
+      "text": "A Ventilátorház a Budapest 18. kerületében, a Királyhágó utca 30. található. Sokszoros díjnyertes cég vagyunk, több évtizedes tapasztalattal és hibátlan véleményekkel. Ha kérdése van, hívja munkatársainkat bizalommal a +36-70-369-9944 telefonszámon!",
+      "cta_callback_url": "https://www.nemesventilatorhaz.hu/visszahivaskero",
+      "cta_callback_text": "Ingyenes tanácsadást kérek",
+      "cta_phone": "tel:+36703699944",
+      "cta_phone_text": "Felhívom most"
+    },
+    "trustindex": {
+      "script": "<script defer async src='https://cdn.trustindex.io/loader.js?cbff376529ad876c29862863c17'></script>"
+    },
+    "miert_ajanjuk_header": {
+      "html": "<div style=\"text-align: center; padding: 20px 0; border-bottom: 2px solid #333; margin-bottom: 20px;\"><h1 style=\"margin: 0;\">Miért ajánljuk?</h1></div>"
+    }
+  }
+}
