@@ -1,10 +1,11 @@
 import type { APIRoute } from 'astro';
-import Anthropic from '@anthropic-ai/sdk';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import type { ExtractedData, ProductData } from '../../lib/types';
 
 export const prerender = false;
 
-const client = new Anthropic();
+const execAsync = promisify(exec);
 
 interface ExtractRequest {
   termekNev: string;
@@ -55,6 +56,16 @@ VÁLASZOLJ KIZÁRÓLAG VALID JSON FORMÁTUMBAN, semmilyen más szöveget ne írj
   ],
   "warnings": ["opcionális figyelmeztetések, ha vannak"]
 }`;
+
+async function callClaudeCode(prompt: string): Promise<string> {
+  // Claude Code CLI hívása a -p (print) móddal
+  const escapedPrompt = prompt.replace(/'/g, "'\\''");
+  const { stdout } = await execAsync(`claude -p '${escapedPrompt}'`, {
+    maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+    timeout: 120000, // 2 perc timeout
+  });
+  return stdout;
+}
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -115,19 +126,10 @@ export const POST: APIRoute = async ({ request }) => {
         // HTML vagy más szöveges formátum
         const pageContent = await pdfResponse.text();
 
-        // Claude API hívás szöveges tartalommal
-        const message = await client.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
-          messages: [
-            {
-              role: 'user',
-              content: `${EXTRACTION_PROMPT}\n\nTermék: ${termekNev}\nGyártó: ${gyarto}\nKategória: ${kategoria}\n\nAdatlap tartalma:\n${pageContent.substring(0, 15000)}`
-            }
-          ],
-        });
+        // Claude Code CLI hívás
+        const fullPrompt = `${EXTRACTION_PROMPT}\n\nTermék: ${termekNev}\nGyártó: ${gyarto}\nKategória: ${kategoria}\n\nAdatlap tartalma:\n${pageContent.substring(0, 15000)}`;
 
-        const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+        const responseText = await callClaudeCode(fullPrompt);
 
         // JSON parse
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
