@@ -31,6 +31,7 @@ interface PdfSearchResponse {
   found: boolean;
   results: PdfSearchResult[];
   search_suggestions?: string[];
+  warning?: string;
   error?: string;
 }
 
@@ -50,6 +51,7 @@ export default function DataExtractor() {
   const [step, setStep] = useState<'input' | 'pdf-results' | 'review'>('input');
   const [pdfResults, setPdfResults] = useState<PdfSearchResult[]>([]);
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [pdfWarning, setPdfWarning] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -80,9 +82,12 @@ export default function DataExtractor() {
 
       if (result.found && result.results.length > 0) {
         setPdfResults(result.results);
+        setPdfWarning(result.warning || null);
+        setSearchSuggestions(result.search_suggestions || []);
         setStep('pdf-results');
       } else {
         setPdfResults([]);
+        setPdfWarning(null);
         setSearchSuggestions(result.search_suggestions || []);
         setError('Nem találtam PDF-et automatikusan. Add meg manuálisan az URL-t, vagy próbáld a javasolt keresésekkel.');
       }
@@ -221,6 +226,37 @@ export default function DataExtractor() {
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
           Válaszd ki a megfelelő adatlapot, vagy add meg manuálisan az URL-t.
         </p>
+
+        {pdfWarning && (
+          <div style={{
+            padding: 'var(--space-md)',
+            background: 'rgba(245, 158, 11, 0.1)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: 'var(--space-md)',
+            fontSize: '0.875rem',
+            color: 'var(--color-warning)',
+            border: '1px solid var(--color-warning)'
+          }}>
+            {pdfWarning}
+          </div>
+        )}
+
+        {searchSuggestions.length > 0 && (
+          <div style={{
+            padding: 'var(--space-sm)',
+            background: 'var(--color-bg-secondary)',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: 'var(--space-md)',
+            fontSize: '0.8rem'
+          }}>
+            <strong>Keresési javaslatok:</strong>
+            <ul style={{ margin: 'var(--space-xs) 0 0 var(--space-md)', padding: 0 }}>
+              {searchSuggestions.map((suggestion, i) => (
+                <li key={i}>{suggestion}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {pdfResults.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>

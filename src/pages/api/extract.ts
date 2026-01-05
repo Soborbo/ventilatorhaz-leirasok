@@ -4,6 +4,66 @@ import type { ExtractedData, ProductData } from '../../lib/types';
 
 export const prerender = false;
 
+// Engedélyezett domain-ek PDF letöltéshez (SSRF védelem)
+const ALLOWED_DOMAINS = [
+  'elicent.it', 'www.elicent.it',
+  'maico-ventilatoren.com', 'www.maico-ventilatoren.com',
+  'blauberg.de', 'www.blauberg.de', 'blaubergvento.de',
+  'awenta.pl', 'www.awenta.pl',
+  'ventilation-system.com', 'www.ventilation-system.com', // Vents
+  'vents.ua', 'vents.eu',
+  'heliosventilatoren.de', 'www.heliosventilatoren.de',
+  'vortice.com', 'www.vortice.com', 'vortice.it',
+  'reventon.hu', 'www.reventon.hu',
+  // Közismert PDF hosting szolgáltatások
+  'cdn.shopify.com',
+  'assets.website-files.com',
+  // Magyar webshopok
+  'ventilatorhaz.hu', 'www.ventilatorhaz.hu',
+];
+
+const MAX_PDF_SIZE = 10 * 1024 * 1024; // 10 MB limit
+
+function isUrlAllowed(urlString: string): { allowed: boolean; reason?: string } {
+  try {
+    const url = new URL(urlString);
+
+    // Csak HTTPS engedélyezett
+    if (url.protocol !== 'https:') {
+      return { allowed: false, reason: 'Csak HTTPS URL-ek engedélyezettek' };
+    }
+
+    // Localhost és privát IP-k tiltva
+    const hostname = url.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('172.') ||
+      hostname.endsWith('.local')
+    ) {
+      return { allowed: false, reason: 'Belső hálózati címek nem engedélyezettek' };
+    }
+
+    // Domain whitelist ellenőrzés
+    const isAllowed = ALLOWED_DOMAINS.some(domain =>
+      hostname === domain || hostname.endsWith('.' + domain)
+    );
+
+    if (!isAllowed) {
+      return {
+        allowed: false,
+        reason: `Domain nem engedélyezett: ${hostname}. Engedélyezett gyártók: Elicent, Maico, Blauberg, Awenta, Vents, Helios, Vortice, Reventon`
+      };
+    }
+
+    return { allowed: true };
+  } catch {
+    return { allowed: false, reason: 'Érvénytelen URL formátum' };
+  }
+}
+
 interface ExtractRequest {
   termekNev: string;
   gyarto: string;
@@ -105,11 +165,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // URL validáció (SSRF védelem)
+    const urlCheck = isUrlAllowed(pdfUrl);
+    if (!urlCheck.allowed) {
+      return new Response(JSON.stringify({
+        extracted_data: baseData,
+        warnings: [`URL elutasítva: ${urlCheck.reason}. Add meg az adatokat manuálisan.`]
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // URL tartalom lekérése
     try {
       const pdfResponse = await fetch(pdfUrl);
       if (!pdfResponse.ok) {
         throw new Error(`Adatlap letöltés sikertelen: ${pdfResponse.status}`);
+      }
+
+      // Méret ellenőrzés
+      const contentLength = pdfResponse.headers.get('content-length');
+      if (contentLength && parseInt(contentLength) > MAX_PDF_SIZE) {
+        throw new Error(`PDF túl nagy (max ${MAX_PDF_SIZE / 1024 / 1024} MB)`);
       }
 
       const contentType = pdfResponse.headers.get('content-type') || '';

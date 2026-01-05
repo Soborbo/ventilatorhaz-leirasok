@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { UspBlock, ExtractedData, PositionedData } from '../lib/types';
 import uspLibrary from '../data/usp-library.json';
 
@@ -82,64 +82,49 @@ export default function UspSelector() {
     setIsLoading(false);
   }, []);
 
+  // USP matching when data changes
   useEffect(() => {
-    if (extractedData.length > 0) {
-      matchUsps();
-    }
-  }, [extractedData, positioning]);
+    if (extractedData.length === 0) return;
 
-  const getValue = (field: string): unknown => {
-    const item = extractedData.find(d => d.field === field);
-    if (item) return item.value;
-
-    if (positioning && field in positioning) {
-      return (positioning as Record<string, unknown>)[field];
-    }
-
-    return undefined;
-  };
-
-  const evaluateCondition = (condition: UspFromLibrary['condition']): boolean => {
-    const { field, operator, value } = condition;
-    const actualValue = getValue(field);
-
-    if (actualValue === undefined) return false;
-
-    switch (operator) {
-      case 'eq':
-        return actualValue === value;
-      case 'in':
-        return Array.isArray(value) && value.includes(actualValue);
-      case 'gt':
-        return typeof actualValue === 'number' && actualValue > (value as number);
-      case 'gte':
-        return typeof actualValue === 'number' && actualValue >= (value as number);
-      case 'lt':
-        return typeof actualValue === 'number' && actualValue < (value as number);
-      case 'lte':
-        return typeof actualValue === 'number' && actualValue <= (value as number);
-      case 'contains':
-        return Array.isArray(actualValue) && actualValue.includes(value);
-      default:
-        return false;
-    }
-  };
-
-  const replaceVariables = (text: string): string => {
-    return text.replace(/\{(\w+)\}/g, (match, varName) => {
-      const value = getValue(varName);
-      if (value !== undefined) {
-        return String(value);
+    const getValue = (field: string): unknown => {
+      const item = extractedData.find(d => d.field === field);
+      if (item) return item.value;
+      if (positioning && field in positioning) {
+        return (positioning as Record<string, unknown>)[field];
       }
-      if (positioning) {
-        const posValue = (positioning as Record<string, unknown>)[varName];
-        if (posValue !== undefined) return String(posValue);
-      }
-      return match;
-    });
-  };
+      return undefined;
+    };
 
-  const matchUsps = () => {
+    const evaluateCondition = (condition: UspFromLibrary['condition']): boolean => {
+      const { field, operator, value } = condition;
+      const actualValue = getValue(field);
+      if (actualValue === undefined) return false;
+
+      switch (operator) {
+        case 'eq': return actualValue === value;
+        case 'in': return Array.isArray(value) && value.includes(actualValue);
+        case 'gt': return typeof actualValue === 'number' && actualValue > (value as number);
+        case 'gte': return typeof actualValue === 'number' && actualValue >= (value as number);
+        case 'lt': return typeof actualValue === 'number' && actualValue < (value as number);
+        case 'lte': return typeof actualValue === 'number' && actualValue <= (value as number);
+        case 'contains': return Array.isArray(actualValue) && actualValue.includes(value);
+        default: return false;
+      }
+    };
+
+    const replaceVariables = (text: string): string => {
+      return text.replace(/\{(\w+)\}/g, (match, varName) => {
+        const value = getValue(varName);
+        if (value !== undefined) return String(value);
+        if (positioning) {
+          const posValue = (positioning as Record<string, unknown>)[varName];
+          if (posValue !== undefined) return String(posValue);
+        }
+        return match;
+      });
+    };
+
+    // Match USPs
     const matched: UspBlock[] = [];
     const categories = uspLibrary.usp_categories as Record<string, { usps: UspFromLibrary[] }>;
 
@@ -167,16 +152,48 @@ export default function UspSelector() {
 
     setSelectedUsps(autoSelected);
     setAvailableUsps(remaining);
+  }, [extractedData, positioning]);
+
+  const getValue = (field: string): unknown => {
+    const item = extractedData.find(d => d.field === field);
+    if (item) return item.value;
+
+    if (positioning && field in positioning) {
+      return (positioning as Record<string, unknown>)[field];
+    }
+
+    return undefined;
   };
 
   // SEO deduplikáció - használt USP-k kezelése
+  const USED_USP_MAX_AGE_DAYS = 30; // 30 napnál régebbi bejegyzések törlése
+
   const getUsedUsps = (): UsedUspRecord[] => {
     const stored = localStorage.getItem('ventilatorhaz_used_usps');
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+
+    const usps: UsedUspRecord[] = JSON.parse(stored);
+    const now = new Date();
+    const maxAgeMs = USED_USP_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+    // Régi bejegyzések kiszűrése
+    const freshUsps = usps.filter(u => {
+      const usedAt = new Date(u.usedAt);
+      return now.getTime() - usedAt.getTime() < maxAgeMs;
+    });
+
+    // Ha voltak törölt bejegyzések, mentjük a tisztított listát
+    if (freshUsps.length !== usps.length) {
+      localStorage.setItem('ventilatorhaz_used_usps', JSON.stringify(freshUsps));
+    }
+
+    return freshUsps;
   };
 
   const saveUsedUsps = (usps: UsedUspRecord[]) => {
-    localStorage.setItem('ventilatorhaz_used_usps', JSON.stringify(usps));
+    // Maximum 500 bejegyzés tárolása (biztonság kedvéért)
+    const limitedUsps = usps.slice(-500);
+    localStorage.setItem('ventilatorhaz_used_usps', JSON.stringify(limitedUsps));
   };
 
   const checkDuplicate = (usp: UspBlock): DuplicateCheckResult => {
