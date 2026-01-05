@@ -31,6 +31,19 @@ interface CompetitorInsight {
   highlights: string[];
 }
 
+interface UsedUspRecord {
+  uspId: string;
+  title: string;
+  productName: string;
+  usedAt: string;
+}
+
+interface DuplicateCheckResult {
+  isDuplicate: boolean;
+  usedBy?: string[];
+  usp?: UspBlock;
+}
+
 export default function UspSelector() {
   const [availableUsps, setAvailableUsps] = useState<UspBlock[]>([]);
   const [selectedUsps, setSelectedUsps] = useState<UspBlock[]>([]);
@@ -43,6 +56,14 @@ export default function UspSelector() {
   const [suggestions, setSuggestions] = useState<UspSuggestion[]>([]);
   const [competitorInsights, setCompetitorInsights] = useState<CompetitorInsight[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // SEO deduplikáció state-ek
+  const [duplicateModal, setDuplicateModal] = useState<{
+    show: boolean;
+    usp: UspBlock | null;
+    usedBy: string[];
+  }>({ show: false, usp: null, usedBy: [] });
+  const [isRephrasing, setIsRephrasing] = useState(false);
 
   useEffect(() => {
     const storedExtracted = localStorage.getItem('ventilatorhaz_extracted');
@@ -148,6 +169,132 @@ export default function UspSelector() {
     setAvailableUsps(remaining);
   };
 
+  // SEO deduplikáció - használt USP-k kezelése
+  const getUsedUsps = (): UsedUspRecord[] => {
+    const stored = localStorage.getItem('ventilatorhaz_used_usps');
+    return stored ? JSON.parse(stored) : [];
+  };
+
+  const saveUsedUsps = (usps: UsedUspRecord[]) => {
+    localStorage.setItem('ventilatorhaz_used_usps', JSON.stringify(usps));
+  };
+
+  const checkDuplicate = (usp: UspBlock): DuplicateCheckResult => {
+    const currentProduct = getValue('termek_nev') as string;
+    const usedUsps = getUsedUsps();
+
+    // Keresés id vagy title alapján
+    const matches = usedUsps.filter(
+      u => (u.uspId === usp.id || u.title === usp.title) && u.productName !== currentProduct
+    );
+
+    if (matches.length > 0) {
+      const usedBy = [...new Set(matches.map(m => m.productName))];
+      return { isDuplicate: true, usedBy, usp };
+    }
+
+    return { isDuplicate: false };
+  };
+
+  const handleRephraseUsp = async (usp: UspBlock) => {
+    setIsRephrasing(true);
+
+    try {
+      const termekNev = getValue('termek_nev') as string;
+
+      const response = await fetch('/api/rephrase-usp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: usp.title,
+          paragraph_1: usp.paragraph_1,
+          paragraph_2: usp.paragraph_2,
+          termekNev,
+          context: 'ventilátor termékleírás'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.rephrased) {
+        // Átfogalmazott USP hozzáadása
+        const rephrasedUsp: UspBlock = {
+          ...usp,
+          id: `REPHRASED_${usp.id}_${Date.now()}`,
+          title: result.rephrased.title,
+          paragraph_1: result.rephrased.paragraph_1,
+          paragraph_2: result.rephrased.paragraph_2 || usp.paragraph_2,
+          order: selectedUsps.length,
+        };
+
+        setSelectedUsps(prev => [...prev, rephrasedUsp]);
+        setAvailableUsps(prev => prev.filter(u => u.id !== usp.id));
+
+        // Mentés a használt USP-k közé
+        const usedUsps = getUsedUsps();
+        usedUsps.push({
+          uspId: rephrasedUsp.id,
+          title: rephrasedUsp.title,
+          productName: getValue('termek_nev') as string,
+          usedAt: new Date().toISOString()
+        });
+        saveUsedUsps(usedUsps);
+      } else {
+        alert('Hiba az átfogalmazás során: ' + (result.error || 'Ismeretlen hiba'));
+      }
+    } catch (err) {
+      console.error('Átfogalmazási hiba:', err);
+      alert('Hiba történt az átfogalmazás során');
+    } finally {
+      setIsRephrasing(false);
+      setDuplicateModal({ show: false, usp: null, usedBy: [] });
+    }
+  };
+
+  const addUspWithDuplicateCheck = (usp: UspBlock, fromSelected: boolean) => {
+    if (fromSelected) {
+      // Törlés esetén nem kell ellenőrizni
+      setSelectedUsps(prev => prev.filter(u => u.id !== usp.id));
+      setAvailableUsps(prev => [...prev, { ...usp, selected: false }]);
+      return;
+    }
+
+    if (selectedUsps.length >= 12) {
+      alert('Maximum 12 USP-t választhatsz ki!');
+      return;
+    }
+
+    // Duplikáció ellenőrzés
+    const duplicateCheck = checkDuplicate(usp);
+
+    if (duplicateCheck.isDuplicate) {
+      setDuplicateModal({
+        show: true,
+        usp,
+        usedBy: duplicateCheck.usedBy || []
+      });
+      return;
+    }
+
+    // Nincs duplikáció - hozzáadás
+    addUspDirectly(usp);
+  };
+
+  const addUspDirectly = (usp: UspBlock) => {
+    setAvailableUsps(prev => prev.filter(u => u.id !== usp.id));
+    setSelectedUsps(prev => [...prev, { ...usp, selected: true, order: prev.length }]);
+
+    // Mentés a használt USP-k közé
+    const usedUsps = getUsedUsps();
+    usedUsps.push({
+      uspId: usp.id,
+      title: usp.title,
+      productName: getValue('termek_nev') as string,
+      usedAt: new Date().toISOString()
+    });
+    saveUsedUsps(usedUsps);
+  };
+
   // Versenytárs elemzés és USP javaslatok
   const handleAnalyzeCompetitors = async () => {
     const termekNev = getValue('termek_nev') as string;
@@ -227,17 +374,8 @@ export default function UspSelector() {
   };
 
   const toggleUsp = (usp: UspBlock, fromSelected: boolean) => {
-    if (fromSelected) {
-      setSelectedUsps(prev => prev.filter(u => u.id !== usp.id));
-      setAvailableUsps(prev => [...prev, { ...usp, selected: false }]);
-    } else {
-      if (selectedUsps.length >= 12) {
-        alert('Maximum 12 USP-t választhatsz ki!');
-        return;
-      }
-      setAvailableUsps(prev => prev.filter(u => u.id !== usp.id));
-      setSelectedUsps(prev => [...prev, { ...usp, selected: true, order: prev.length }]);
-    }
+    // SEO deduplikáció ellenőrzéssel
+    addUspWithDuplicateCheck(usp, fromSelected);
   };
 
   const moveUsp = (index: number, direction: 'up' | 'down') => {
@@ -547,6 +685,94 @@ export default function UspSelector() {
           Tovább a HTML generáláshoz →
         </button>
       </div>
+
+      {/* SEO duplikáció figyelmeztetés modal */}
+      {duplicateModal.show && duplicateModal.usp && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'var(--color-bg-primary)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-xl)',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', color: 'var(--color-warning)' }}>
+              ⚠️ SEO figyelmeztetés: Duplikált tartalom
+            </h3>
+
+            <p style={{ marginBottom: 'var(--space-md)', color: 'var(--color-text-muted)' }}>
+              Ez az USP már használva volt más termékeknél:
+            </p>
+
+            <div style={{
+              background: 'var(--color-bg-secondary)',
+              padding: 'var(--space-sm)',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: 'var(--space-md)'
+            }}>
+              <strong style={{ fontSize: '0.9rem' }}>{duplicateModal.usp.title}</strong>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)' }}>
+                Használva: {duplicateModal.usedBy.join(', ')}
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-lg)' }}>
+              A duplikált szöveg káros a SEO-ra. Válassz az alábbi lehetőségek közül:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => handleRephraseUsp(duplicateModal.usp!)}
+                disabled={isRephrasing}
+                style={{ width: '100%' }}
+              >
+                {isRephrasing ? (
+                  <>
+                    <span className="spinner"></span>
+                    Átfogalmazás...
+                  </>
+                ) : (
+                  '✨ Átfogalmazás AI-val (ajánlott)'
+                )}
+              </button>
+
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  addUspDirectly(duplicateModal.usp!);
+                  setDuplicateModal({ show: false, usp: null, usedBy: [] });
+                }}
+                disabled={isRephrasing}
+                style={{ width: '100%' }}
+              >
+                📋 Használat változatlanul (nem ajánlott)
+              </button>
+
+              <button
+                className="btn"
+                onClick={() => setDuplicateModal({ show: false, usp: null, usedBy: [] })}
+                disabled={isRephrasing}
+                style={{ width: '100%', color: 'var(--color-text-muted)' }}
+              >
+                ✕ Mégsem
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
