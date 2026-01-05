@@ -11,9 +11,22 @@ interface PdfResult {
   url: string;
   title: string;
   source: string;
+  snippet?: string;
 }
 
-// Gyártói URL pattern-ek - ezek valódi, ismert URL struktúrák
+interface GoogleSearchResult {
+  items?: Array<{
+    title: string;
+    link: string;
+    snippet?: string;
+    displayLink: string;
+  }>;
+  error?: {
+    message: string;
+  };
+}
+
+// Gyártói URL pattern-ek - fallback ha nincs API kulcs
 const MANUFACTURER_PATTERNS: Record<string, {
   baseUrl: string;
   pdfPath: (productName: string) => string[];
@@ -72,7 +85,84 @@ const MANUFACTURER_PATTERNS: Record<string, {
   },
 };
 
-export const POST: APIRoute = async ({ request }) => {
+/**
+ * Get API keys from Cloudflare runtime or environment
+ */
+function getSearchApiKeys(locals: unknown): { googleApiKey?: string; searchEngineId?: string } {
+  const runtime = (locals as { runtime?: { env?: { GOOGLE_API_KEY?: string; GOOGLE_SEARCH_ENGINE_ID?: string } } }).runtime;
+  return {
+    googleApiKey: runtime?.env?.GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY,
+    searchEngineId: runtime?.env?.GOOGLE_SEARCH_ENGINE_ID || import.meta.env.GOOGLE_SEARCH_ENGINE_ID,
+  };
+}
+
+/**
+ * Search using Google Custom Search API
+ */
+async function googleSearch(query: string, apiKey: string, searchEngineId: string): Promise<PdfResult[]> {
+  const searchUrl = new URL('https://www.googleapis.com/customsearch/v1');
+  searchUrl.searchParams.set('key', apiKey);
+  searchUrl.searchParams.set('cx', searchEngineId);
+  searchUrl.searchParams.set('q', query);
+  searchUrl.searchParams.set('num', '10');
+  // Filter for PDF files
+  searchUrl.searchParams.set('fileType', 'pdf');
+
+  const response = await fetch(searchUrl.toString());
+  const data: GoogleSearchResult = await response.json();
+
+  if (data.error) {
+    throw new Error(data.error.message);
+  }
+
+  if (!data.items || data.items.length === 0) {
+    return [];
+  }
+
+  return data.items.map(item => ({
+    url: item.link,
+    title: item.title,
+    source: item.displayLink,
+    snippet: item.snippet,
+  }));
+}
+
+/**
+ * Fallback to URL patterns when no API key
+ */
+function getPatternResults(termekNev: string, gyarto: string): { results: PdfResult[]; suggestions: string[] } {
+  const results: PdfResult[] = [];
+  const suggestions: string[] = [];
+
+  const pattern = MANUFACTURER_PATTERNS[gyarto];
+
+  if (pattern) {
+    const possibleUrls = pattern.pdfPath(termekNev);
+    possibleUrls.forEach((path, index) => {
+      results.push({
+        url: `${pattern.baseUrl}${path}`,
+        title: `${gyarto} ${termekNev} adatlap (minta URL #${index + 1})`,
+        source: `${gyarto} hivatalos oldala (ellenőrizd!)`,
+      });
+    });
+
+    suggestions.push(
+      `Keresd Google-ben: "${gyarto} ${termekNev} datasheet PDF"`,
+      `Látogasd meg: ${pattern.searchUrl}`,
+      `Próbáld: ${pattern.baseUrl} + termék oldala`,
+    );
+  } else {
+    suggestions.push(
+      `Keresd Google-ben: "${gyarto} ${termekNev} datasheet PDF"`,
+      `Keresd Google-ben: "${gyarto} ${termekNev} műszaki adatlap"`,
+      `Látogasd meg a ${gyarto} hivatalos weboldalát`,
+    );
+  }
+
+  return { results, suggestions };
+}
+
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const body: SearchRequest = await request.json();
     const { termekNev, gyarto } = body;
@@ -86,41 +176,50 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    const results: PdfResult[] = [];
-    const searchSuggestions: string[] = [];
+    const { googleApiKey, searchEngineId } = getSearchApiKeys(locals);
 
-    // Ha ismerjük a gyártót, adjunk URL javaslatokat
-    const pattern = MANUFACTURER_PATTERNS[gyarto];
+    // Ha van API kulcs, használjuk a valódi Google keresést
+    if (googleApiKey && searchEngineId) {
+      try {
+        const query = `${gyarto} ${termekNev} datasheet PDF`;
+        const results = await googleSearch(query, googleApiKey, searchEngineId);
 
-    if (pattern) {
-      const possibleUrls = pattern.pdfPath(termekNev);
-      possibleUrls.forEach((path, index) => {
-        results.push({
-          url: `${pattern.baseUrl}${path}`,
-          title: `${gyarto} ${termekNev} adatlap (minta URL #${index + 1})`,
-          source: `${gyarto} hivatalos oldala (ellenőrizd!)`,
+        return new Response(JSON.stringify({
+          found: results.length > 0,
+          results,
+          search_type: 'google',
+          query,
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
         });
-      });
-
-      searchSuggestions.push(
-        `Keresd Google-ben: "${gyarto} ${termekNev} datasheet PDF"`,
-        `Látogasd meg: ${pattern.searchUrl}`,
-        `Próbáld: ${pattern.baseUrl} + termék oldala`,
-      );
-    } else {
-      // Ismeretlen gyártó
-      searchSuggestions.push(
-        `Keresd Google-ben: "${gyarto} ${termekNev} datasheet PDF"`,
-        `Keresd Google-ben: "${gyarto} ${termekNev} műszaki adatlap"`,
-        `Látogasd meg a ${gyarto} hivatalos weboldalát`,
-      );
+      } catch (searchError) {
+        console.error('Google keresési hiba:', searchError);
+        // Fallback URL mintákra ha a keresés sikertelen
+        const { results, suggestions } = getPatternResults(termekNev, gyarto);
+        return new Response(JSON.stringify({
+          found: results.length > 0,
+          results,
+          search_suggestions: suggestions,
+          search_type: 'pattern_fallback',
+          warning: '⚠️ Google keresés sikertelen, URL minták alapján keresünk.',
+          error: searchError instanceof Error ? searchError.message : 'Keresési hiba',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     }
+
+    // Nincs API kulcs - használjuk a URL mintákat
+    const { results, suggestions } = getPatternResults(termekNev, gyarto);
 
     return new Response(JSON.stringify({
       found: results.length > 0,
       results,
-      search_suggestions: searchSuggestions,
-      warning: '⚠️ Ezek MINTA URL-ek a gyártó ismert struktúrája alapján. Ellenőrizd, hogy léteznek-e! A legjobb ha magad keresed meg a PDF-et a gyártó oldalán.',
+      search_suggestions: suggestions,
+      search_type: 'pattern',
+      warning: '⚠️ Google keresés nincs konfigurálva. Ezek MINTA URL-ek a gyártó ismert struktúrája alapján. Állítsd be a GOOGLE_API_KEY és GOOGLE_SEARCH_ENGINE_ID környezeti változókat a valódi kereséshez.',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

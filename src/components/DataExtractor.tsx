@@ -25,6 +25,7 @@ interface PdfSearchResult {
   url: string;
   title: string;
   source: string;
+  snippet?: string;
 }
 
 interface PdfSearchResponse {
@@ -33,6 +34,8 @@ interface PdfSearchResponse {
   search_suggestions?: string[];
   warning?: string;
   error?: string;
+  search_type?: 'google' | 'pattern' | 'pattern_fallback';
+  query?: string;
 }
 
 export default function DataExtractor() {
@@ -52,6 +55,7 @@ export default function DataExtractor() {
   const [pdfResults, setPdfResults] = useState<PdfSearchResult[]>([]);
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [pdfWarning, setPdfWarning] = useState<string | null>(null);
+  const [searchType, setSearchType] = useState<'google' | 'pattern' | 'pattern_fallback' | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -84,11 +88,13 @@ export default function DataExtractor() {
         setPdfResults(result.results);
         setPdfWarning(result.warning || null);
         setSearchSuggestions(result.search_suggestions || []);
+        setSearchType(result.search_type || null);
         setStep('pdf-results');
       } else {
         setPdfResults([]);
         setPdfWarning(null);
         setSearchSuggestions(result.search_suggestions || []);
+        setSearchType(result.search_type || null);
         setError('Nem találtam PDF-et automatikusan. Add meg manuálisan az URL-t, vagy próbáld a javasolt keresésekkel.');
       }
     } catch (err) {
@@ -220,11 +226,25 @@ export default function DataExtractor() {
     return (
       <div className="card">
         <div className="card-header">
-          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Talált PDF adatlapok</h2>
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>
+            Talált PDF adatlapok
+            {searchType === 'google' && (
+              <span className="badge badge-success" style={{ marginLeft: 'var(--space-sm)', fontSize: '0.7rem' }}>
+                Google keresés
+              </span>
+            )}
+            {(searchType === 'pattern' || searchType === 'pattern_fallback') && (
+              <span className="badge badge-warning" style={{ marginLeft: 'var(--space-sm)', fontSize: '0.7rem' }}>
+                URL minták
+              </span>
+            )}
+          </h2>
         </div>
 
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
-          Válaszd ki a megfelelő adatlapot, vagy add meg manuálisan az URL-t.
+          {searchType === 'google'
+            ? 'Valódi Google keresési találatok. Válaszd ki a megfelelő adatlapot.'
+            : 'Válaszd ki a megfelelő adatlapot, vagy add meg manuálisan az URL-t.'}
         </p>
 
         {pdfWarning && (
@@ -277,6 +297,11 @@ export default function DataExtractor() {
                   <div style={{ fontWeight: 500, marginBottom: 'var(--space-xs)' }}>
                     {result.title}
                   </div>
+                  {result.snippet && (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text)', marginBottom: 'var(--space-xs)' }}>
+                      {result.snippet}
+                    </div>
+                  )}
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                     {result.source}
                   </div>
