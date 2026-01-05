@@ -1,11 +1,10 @@
 import type { APIRoute } from 'astro';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import Anthropic from '@anthropic-ai/sdk';
 import type { ExtractedData, ProductData } from '../../lib/types';
 
 export const prerender = false;
 
-const execAsync = promisify(exec);
+const client = new Anthropic();
 
 interface ExtractRequest {
   termekNev: string;
@@ -57,16 +56,6 @@ VÁLASZOLJ KIZÁRÓLAG VALID JSON FORMÁTUMBAN, semmilyen más szöveget ne írj
   "warnings": ["opcionális figyelmeztetések, ha vannak"]
 }`;
 
-async function callClaudeCode(prompt: string): Promise<string> {
-  // Claude Code CLI hívása a -p (print) móddal
-  const escapedPrompt = prompt.replace(/'/g, "'\\''");
-  const { stdout } = await execAsync(`claude -p '${escapedPrompt}'`, {
-    maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-    timeout: 120000, // 2 perc timeout
-  });
-  return stdout;
-}
-
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body: ExtractRequest = await request.json();
@@ -107,13 +96,12 @@ export const POST: APIRoute = async ({ request }) => {
     try {
       const pdfResponse = await fetch(pdfUrl);
       if (!pdfResponse.ok) {
-        throw new Error(`PDF letöltés sikertelen: ${pdfResponse.status}`);
+        throw new Error(`Adatlap letöltés sikertelen: ${pdfResponse.status}`);
       }
 
       const contentType = pdfResponse.headers.get('content-type') || '';
 
       if (contentType.includes('application/pdf')) {
-        // PDF fájl esetén - visszajelzés, hogy PDF-et nem tudjuk közvetlenül feldolgozni
         return new Response(JSON.stringify({
           extracted_data: baseData,
           warnings: ['A PDF fájlok közvetlen feldolgozása jelenleg nem támogatott. Kérlek add meg az adatokat manuálisan, vagy használj HTML adatlapot.']
@@ -126,10 +114,19 @@ export const POST: APIRoute = async ({ request }) => {
         // HTML vagy más szöveges formátum
         const pageContent = await pdfResponse.text();
 
-        // Claude Code CLI hívás
-        const fullPrompt = `${EXTRACTION_PROMPT}\n\nTermék: ${termekNev}\nGyártó: ${gyarto}\nKategória: ${kategoria}\n\nAdatlap tartalma:\n${pageContent.substring(0, 15000)}`;
+        // Claude API hívás
+        const message = await client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [
+            {
+              role: 'user',
+              content: `${EXTRACTION_PROMPT}\n\nTermék: ${termekNev}\nGyártó: ${gyarto}\nKategória: ${kategoria}\n\nAdatlap tartalma:\n${pageContent.substring(0, 15000)}`
+            }
+          ],
+        });
 
-        const responseText = await callClaudeCode(fullPrompt);
+        const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
 
         // JSON parse
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -150,10 +147,10 @@ export const POST: APIRoute = async ({ request }) => {
       }
 
     } catch (fetchError) {
-      console.error('PDF feldolgozási hiba:', fetchError);
+      console.error('Feldolgozási hiba:', fetchError);
       return new Response(JSON.stringify({
         extracted_data: baseData,
-        warnings: [`PDF feldolgozás sikertelen: ${fetchError instanceof Error ? fetchError.message : 'Ismeretlen hiba'}. Add meg az adatokat manuálisan.`]
+        warnings: [`Feldolgozás sikertelen: ${fetchError instanceof Error ? fetchError.message : 'Ismeretlen hiba'}. Add meg az adatokat manuálisan.`]
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
