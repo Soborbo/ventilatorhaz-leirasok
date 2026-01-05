@@ -4,8 +4,6 @@ import type { ExtractedData, ProductData } from '../../lib/types';
 
 export const prerender = false;
 
-const client = new Anthropic();
-
 interface ExtractRequest {
   termekNev: string;
   gyarto: string;
@@ -56,7 +54,22 @@ VÁLASZOLJ KIZÁRÓLAG VALID JSON FORMÁTUMBAN, semmilyen más szöveget ne írj
   "warnings": ["opcionális figyelmeztetések, ha vannak"]
 }`;
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
+  // Cloudflare környezetben a runtime.env-ből jön az API kulcs
+  const runtime = (locals as any).runtime;
+  const apiKey = runtime?.env?.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    return new Response(JSON.stringify({
+      error: 'ANTHROPIC_API_KEY nincs beállítva'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const client = new Anthropic({ apiKey });
+
   try {
     const body: ExtractRequest = await request.json();
     const { termekNev, gyarto, kategoria, pdfUrl, arFt } = body;
