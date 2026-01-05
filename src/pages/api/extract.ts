@@ -100,11 +100,55 @@ export const POST: APIRoute = async ({ request }) => {
       }
 
       const contentType = pdfResponse.headers.get('content-type') || '';
+      const isPdf = contentType.includes('application/pdf') || pdfUrl.toLowerCase().endsWith('.pdf');
 
-      if (contentType.includes('application/pdf')) {
+      if (isPdf) {
+        // PDF feldolgozás base64 kódolással
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+        const uint8Array = new Uint8Array(pdfBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
+        }
+        const base64Pdf = btoa(binary);
+
+        const message = await client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    media_type: 'application/pdf',
+                    data: base64Pdf,
+                  },
+                } as any,
+                {
+                  type: 'text',
+                  text: `${EXTRACTION_PROMPT}\n\nTermék: ${termekNev}\nGyártó: ${gyarto}\nKategória: ${kategoria}`
+                }
+              ],
+            }
+          ],
+        });
+
+        const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('Nem sikerült JSON-t kinyerni a válaszból');
+        }
+
+        const parsed = JSON.parse(jsonMatch[0]);
+        const extractedFromPdf: ExtractedData[] = parsed.extracted || [];
+
         return new Response(JSON.stringify({
-          extracted_data: baseData,
-          warnings: ['A PDF fájlok közvetlen feldolgozása jelenleg nem támogatott. Kérlek add meg az adatokat manuálisan, vagy használj HTML adatlapot.']
+          extracted_data: [...baseData, ...extractedFromPdf],
+          warnings: parsed.warnings || []
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
