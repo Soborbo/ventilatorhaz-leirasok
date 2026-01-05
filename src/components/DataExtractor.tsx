@@ -50,33 +50,36 @@ export default function DataExtractor() {
     setError(null);
 
     try {
-      // TODO: Real API call to Claude
-      // For now, simulate extraction
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockExtracted: ExtractedData[] = [
-        { field: 'termek_nev', value: formData.termekNev, status: 'biztos' },
-        { field: 'gyarto', value: formData.gyarto, status: 'biztos' },
-        { field: 'kategoria', value: formData.kategoria, status: 'biztos' },
-        { field: 'zajszint_db', value: 32, status: 'biztos', source: 'Adatlap 2. oldal' },
-        { field: 'legszallitas_m3h', value: 97, status: 'biztos', source: 'Adatlap 2. oldal' },
-        { field: 'nyomas_pa', value: 159, status: 'biztos', source: 'Adatlap 2. oldal' },
-        { field: 'teljesitmeny_w', value: 8, status: 'biztos', source: 'Adatlap 2. oldal' },
-        { field: 'ip_vedelem', value: 'IPX4', status: 'biztos', source: 'Adatlap 1. oldal' },
-        { field: 'csapagy_tipus', value: 'golyóscsapágy', status: 'kovetkeztetett', source: '"Long Life csapágy" - feltételezhetően golyóscsapágy' },
-        { field: 'visszacsapo_szelep', value: true, status: 'biztos', source: 'Adatlap 3. oldal' },
-        { field: 'elettartam_ora', value: 30000, status: 'biztos', source: 'Adatlap 1. oldal' },
-        { field: 'csoatmero_mm', value: 100, status: 'biztos', source: 'Terméknévből' },
-      ];
+      const response = await fetch('/api/extract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          termekNev: formData.termekNev,
+          gyarto: formData.gyarto,
+          kategoria: formData.kategoria,
+          pdfUrl: formData.pdfUrl || undefined,
+          arFt: formData.arFt ? parseInt(formData.arFt) : undefined,
+        }),
+      });
 
-      if (formData.arFt) {
-        mockExtracted.push({ field: 'ar_ft', value: parseInt(formData.arFt), status: 'biztos', source: 'Felhasználói input' });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'API hiba történt');
       }
 
-      setExtractedData(mockExtracted);
+      // Figyelmeztetések megjelenítése, ha vannak
+      if (result.warnings && result.warnings.length > 0) {
+        console.log('Figyelmeztetések:', result.warnings);
+      }
+
+      setExtractedData(result.extracted_data as ExtractedData[]);
       setStep('review');
     } catch (err) {
-      setError('Hiba történt az adat kinyerés során. Próbáld újra.');
+      console.error('Extraction error:', err);
+      setError(err instanceof Error ? err.message : 'Hiba történt az adat kinyerés során. Próbáld újra.');
     } finally {
       setIsLoading(false);
     }
