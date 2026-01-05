@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "@astrojs/node": "^8.3.4",
+    "@astrojs/cloudflare": "^11.2.0",
     "@astrojs/react": "^3.6.0",
     "astro": "^4.16.0",
     "react": "^18.3.0",
