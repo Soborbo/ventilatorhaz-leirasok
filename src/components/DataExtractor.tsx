@@ -21,6 +21,19 @@ interface FormData {
   arFt: string;
 }
 
+interface PdfSearchResult {
+  url: string;
+  title: string;
+  source: string;
+}
+
+interface PdfSearchResponse {
+  found: boolean;
+  results: PdfSearchResult[];
+  search_suggestions?: string[];
+  error?: string;
+}
+
 export default function DataExtractor() {
   const [formData, setFormData] = useState<FormData>({
     termekNev: '',
@@ -29,15 +42,62 @@ export default function DataExtractor() {
     pdfUrl: '',
     arFt: '',
   });
-  
+
   const [extractedData, setExtractedData] = useState<ExtractedData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<'input' | 'review'>('input');
+  const [step, setStep] = useState<'input' | 'pdf-results' | 'review'>('input');
+  const [pdfResults, setPdfResults] = useState<PdfSearchResult[]>([]);
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // PDF keresés
+  const handleSearchPdf = async () => {
+    if (!formData.termekNev || !formData.gyarto) {
+      setError('Add meg a terméknevet és gyártót a PDF kereséshez');
+      return;
+    }
+
+    setIsSearching(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/search-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          termekNev: formData.termekNev,
+          gyarto: formData.gyarto,
+        }),
+      });
+
+      const result: PdfSearchResponse = await response.json();
+
+      if (result.found && result.results.length > 0) {
+        setPdfResults(result.results);
+        setStep('pdf-results');
+      } else {
+        setPdfResults([]);
+        setSearchSuggestions(result.search_suggestions || []);
+        setError('Nem találtam PDF-et automatikusan. Add meg manuálisan az URL-t, vagy próbáld a javasolt keresésekkel.');
+      }
+    } catch (err) {
+      console.error('PDF search error:', err);
+      setError('Hiba történt a keresés során.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // PDF kiválasztása
+  const handleSelectPdf = (url: string) => {
+    setFormData(prev => ({ ...prev, pdfUrl: url }));
+    setStep('input');
   };
 
   const handleExtract = async () => {
@@ -70,7 +130,6 @@ export default function DataExtractor() {
         throw new Error(result.error || 'API hiba történt');
       }
 
-      // Figyelmeztetések megjelenítése, ha vannak
       if (result.warnings && result.warnings.length > 0) {
         console.log('Figyelmeztetések:', result.warnings);
       }
@@ -124,7 +183,7 @@ export default function DataExtractor() {
   };
 
   const handleStatusChange = (index: number, newStatus: DataStatus) => {
-    setExtractedData(prev => prev.map((item, i) => 
+    setExtractedData(prev => prev.map((item, i) =>
       i === index ? { ...item, status: newStatus } : item
     ));
   };
@@ -132,30 +191,96 @@ export default function DataExtractor() {
   const handleValueChange = (index: number, newValue: string) => {
     setExtractedData(prev => prev.map((item, i) => {
       if (i !== index) return item;
-      
-      // Parse value based on field type
+
       let parsedValue: unknown = newValue;
       if (['zajszint_db', 'legszallitas_m3h', 'nyomas_pa', 'teljesitmeny_w', 'elettartam_ora', 'csoatmero_mm', 'ar_ft'].includes(item.field)) {
         parsedValue = parseInt(newValue) || 0;
       } else if (item.field === 'visszacsapo_szelep') {
         parsedValue = newValue.toLowerCase() === 'igen';
       }
-      
+
       return { ...item, value: parsedValue };
     }));
   };
 
   const handleProceed = () => {
-    // Filter out non-biztos data and proceed to next phase
     const validData = extractedData.filter(d => d.status === 'biztos');
-    
-    // Store in localStorage for next phase
     localStorage.setItem('ventilatorhaz_extracted', JSON.stringify(validData));
     localStorage.setItem('ventilatorhaz_phase', '2');
-    
-    // Navigate to position phase
     window.location.href = '/position';
   };
+
+  // PDF Results step
+  if (step === 'pdf-results') {
+    return (
+      <div className="card">
+        <div className="card-header">
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Talált PDF adatlapok</h2>
+        </div>
+
+        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
+          Válaszd ki a megfelelő adatlapot, vagy add meg manuálisan az URL-t.
+        </p>
+
+        {pdfResults.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            {pdfResults.map((result, index) => (
+              <div
+                key={index}
+                style={{
+                  padding: 'var(--space-md)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 'var(--space-md)'
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, marginBottom: 'var(--space-xs)' }}>
+                    {result.title}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                    {result.source}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                  <a
+                    href={result.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.875rem', padding: 'var(--space-xs) var(--space-sm)' }}
+                  >
+                    Megtekintés
+                  </a>
+                  <button
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.875rem', padding: 'var(--space-xs) var(--space-sm)' }}
+                    onClick={() => handleSelectPdf(result.url)}
+                  >
+                    Kiválasztás
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p>Nincs találat.</p>
+        )}
+
+        <div style={{ marginTop: 'var(--space-lg)', display: 'flex', gap: 'var(--space-md)' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setStep('input')}
+          >
+            ← Vissza
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'input') {
     return (
@@ -163,7 +288,7 @@ export default function DataExtractor() {
         <div className="card-header">
           <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Új termék</h2>
         </div>
-        
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
           <div className="form-group">
             <label className="form-label">Terméknév *</label>
@@ -171,12 +296,12 @@ export default function DataExtractor() {
               type="text"
               name="termekNev"
               className="form-input"
-              placeholder="pl. Elicent Elix 100"
+              placeholder="pl. Elix 100"
               value={formData.termekNev}
               onChange={handleInputChange}
             />
           </div>
-          
+
           <div className="form-group">
             <label className="form-label">Gyártó *</label>
             <select
@@ -191,7 +316,7 @@ export default function DataExtractor() {
               ))}
             </select>
           </div>
-          
+
           <div className="form-group">
             <label className="form-label">Kategória *</label>
             <select
@@ -206,7 +331,7 @@ export default function DataExtractor() {
               ))}
             </select>
           </div>
-          
+
           <div className="form-group">
             <label className="form-label">Ár (Ft)</label>
             <input
@@ -219,26 +344,65 @@ export default function DataExtractor() {
             />
           </div>
         </div>
-        
-        <div className="form-group" style={{ marginTop: 'var(--space-md)' }}>
-          <label className="form-label">PDF adatlap URL</label>
+
+        {/* PDF keresés szekció */}
+        <div className="form-group" style={{ marginTop: 'var(--space-lg)', padding: 'var(--space-md)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
+          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            PDF adatlap
+            {formData.pdfUrl && (
+              <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>URL megadva</span>
+            )}
+          </label>
+
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={handleSearchPdf}
+              disabled={isSearching || !formData.termekNev || !formData.gyarto}
+              style={{ flex: '0 0 auto' }}
+            >
+              {isSearching ? (
+                <>
+                  <span className="spinner"></span>
+                  Keresés...
+                </>
+              ) : (
+                '🔎 PDF keresése automatikusan'
+              )}
+            </button>
+
+            {formData.pdfUrl && (
+              <a
+                href={formData.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary"
+              >
+                Megnyitás
+              </a>
+            )}
+          </div>
+
           <input
             type="url"
             name="pdfUrl"
             className="form-input"
-            placeholder="https://..."
+            placeholder="...vagy írd be manuálisan: https://..."
             value={formData.pdfUrl}
             onChange={handleInputChange}
           />
-          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)' }}>
-            Add meg a gyártói adatlap URL-jét, vagy hagyd üresen és töltsd fel manuálisan az adatokat.
-          </p>
+
+          {searchSuggestions.length > 0 && (
+            <div style={{ marginTop: 'var(--space-sm)', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              Keresési javaslat: {searchSuggestions.join(', ')}
+            </div>
+          )}
         </div>
-        
+
         {error && (
-          <div style={{ 
-            padding: 'var(--space-md)', 
-            background: 'rgba(239, 68, 68, 0.1)', 
+          <div style={{
+            padding: 'var(--space-md)',
+            background: 'rgba(239, 68, 68, 0.1)',
             borderRadius: 'var(--radius-md)',
             color: 'var(--color-error)',
             marginTop: 'var(--space-md)',
@@ -247,9 +411,9 @@ export default function DataExtractor() {
             {error}
           </div>
         )}
-        
+
         <div style={{ marginTop: 'var(--space-lg)', display: 'flex', gap: 'var(--space-md)' }}>
-          <button 
+          <button
             className="btn btn-primary"
             onClick={handleExtract}
             disabled={isLoading}
@@ -261,12 +425,12 @@ export default function DataExtractor() {
               </>
             ) : (
               <>
-                🔍 Adatok kinyerése
+                🚀 Adatok kinyerése
               </>
             )}
           </button>
-          
-          <button 
+
+          <button
             className="btn btn-secondary"
             onClick={() => setStep('review')}
           >
@@ -288,11 +452,11 @@ export default function DataExtractor() {
             <span className="badge badge-warning">⚠️ {extractedData.filter(d => d.status === 'kovetkeztetett').length} következtetett</span>
           </div>
         </div>
-        
+
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
           Ellenőrizd és szükség esetén módosítsd az adatokat. Csak a <strong>✓ Biztos</strong> státuszú adatok kerülnek a szövegbe!
         </p>
-        
+
         <table className="data-table">
           <thead>
             <tr>
@@ -335,16 +499,16 @@ export default function DataExtractor() {
           </tbody>
         </table>
       </div>
-      
+
       <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'space-between' }}>
-        <button 
+        <button
           className="btn btn-secondary"
           onClick={() => setStep('input')}
         >
           ← Vissza
         </button>
-        
-        <button 
+
+        <button
           className="btn btn-success"
           onClick={handleProceed}
         >
