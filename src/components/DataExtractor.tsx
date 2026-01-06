@@ -230,7 +230,7 @@ export default function DataExtractor() {
             Talált PDF adatlapok
             {searchType === 'google' && (
               <span className="badge badge-success" style={{ marginLeft: 'var(--space-sm)', fontSize: '0.7rem' }}>
-                Google keresés
+                Gemini + Google
               </span>
             )}
             {(searchType === 'pattern' || searchType === 'pattern_fallback') && (
@@ -243,7 +243,7 @@ export default function DataExtractor() {
 
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-md)' }}>
           {searchType === 'google'
-            ? 'Valódi Google keresési találatok. Válaszd ki a megfelelő adatlapot.'
+            ? 'Gemini AI + Google keresési találatok. Válaszd ki a megfelelő adatlapot.'
             : 'Válaszd ki a megfelelő adatlapot, vagy add meg manuálisan az URL-t.'}
         </p>
 

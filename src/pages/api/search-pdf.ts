@@ -14,12 +14,26 @@ interface PdfResult {
   snippet?: string;
 }
 
-interface GoogleSearchResult {
-  items?: Array<{
-    title: string;
-    link: string;
-    snippet?: string;
-    displayLink: string;
+// Gemini API response types
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+    groundingMetadata?: {
+      searchEntryPoint?: {
+        renderedContent?: string;
+      };
+      groundingChunks?: Array<{
+        web?: {
+          uri?: string;
+          title?: string;
+        };
+      }>;
+      webSearchQueries?: string[];
+    };
   }>;
   error?: {
     message: string;
@@ -86,45 +100,91 @@ const MANUFACTURER_PATTERNS: Record<string, {
 };
 
 /**
- * Get API keys from Cloudflare runtime or environment
+ * Get Gemini API key from Cloudflare runtime or environment
  */
-function getSearchApiKeys(locals: unknown): { googleApiKey?: string; searchEngineId?: string } {
-  const runtime = (locals as { runtime?: { env?: { GOOGLE_API_KEY?: string; GOOGLE_SEARCH_ENGINE_ID?: string } } }).runtime;
-  return {
-    googleApiKey: runtime?.env?.GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY,
-    searchEngineId: runtime?.env?.GOOGLE_SEARCH_ENGINE_ID || import.meta.env.GOOGLE_SEARCH_ENGINE_ID,
-  };
+function getGeminiApiKey(locals: unknown): string | undefined {
+  const runtime = (locals as { runtime?: { env?: { GEMINI_API_KEY?: string } } }).runtime;
+  return runtime?.env?.GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
 }
 
 /**
- * Search using Google Custom Search API
+ * Search using Gemini API with Google Search Grounding
  */
-async function googleSearch(query: string, apiKey: string, searchEngineId: string): Promise<PdfResult[]> {
-  const searchUrl = new URL('https://www.googleapis.com/customsearch/v1');
-  searchUrl.searchParams.set('key', apiKey);
-  searchUrl.searchParams.set('cx', searchEngineId);
-  searchUrl.searchParams.set('q', query);
-  searchUrl.searchParams.set('num', '10');
-  // Filter for PDF files
-  searchUrl.searchParams.set('fileType', 'pdf');
+async function geminiSearch(query: string, apiKey: string): Promise<PdfResult[]> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Find PDF datasheet download links for this ventilator/fan product: "${query}"
 
-  const response = await fetch(searchUrl.toString());
-  const data: GoogleSearchResult = await response.json();
+Search for official manufacturer PDF datasheets, technical specifications, and product documentation.
+Focus on direct .pdf file links from the manufacturer's website.
+
+Return ONLY the URLs you find, one per line. No explanations needed.`
+          }]
+        }],
+        tools: [{
+          googleSearch: {}
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+        }
+      }),
+    }
+  );
+
+  const data: GeminiResponse = await response.json();
 
   if (data.error) {
     throw new Error(data.error.message);
   }
 
-  if (!data.items || data.items.length === 0) {
-    return [];
+  const results: PdfResult[] = [];
+  const seenUrls = new Set<string>();
+
+  // Extract URLs from grounding metadata (most reliable)
+  const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks;
+  if (groundingChunks) {
+    for (const chunk of groundingChunks) {
+      if (chunk.web?.uri && !seenUrls.has(chunk.web.uri)) {
+        seenUrls.add(chunk.web.uri);
+        results.push({
+          url: chunk.web.uri,
+          title: chunk.web.title || 'PDF adatlap',
+          source: new URL(chunk.web.uri).hostname,
+        });
+      }
+    }
   }
 
-  return data.items.map(item => ({
-    url: item.link,
-    title: item.title,
-    source: item.displayLink,
-    snippet: item.snippet,
-  }));
+  // Also extract URLs from the text response
+  const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+\.pdf/gi;
+  const textUrls = textResponse.match(urlRegex) || [];
+
+  for (const url of textUrls) {
+    if (!seenUrls.has(url)) {
+      seenUrls.add(url);
+      try {
+        results.push({
+          url,
+          title: 'PDF adatlap',
+          source: new URL(url).hostname,
+        });
+      } catch {
+        // Invalid URL, skip
+      }
+    }
+  }
+
+  return results;
 }
 
 /**
@@ -176,13 +236,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    const { googleApiKey, searchEngineId } = getSearchApiKeys(locals);
+    const geminiApiKey = getGeminiApiKey(locals);
 
-    // Ha van API kulcs, használjuk a valódi Google keresést
-    if (googleApiKey && searchEngineId) {
+    // Ha van Gemini API kulcs, használjuk a Gemini + Google Search-öt
+    if (geminiApiKey) {
       try {
         const query = `${gyarto} ${termekNev} datasheet PDF`;
-        const results = await googleSearch(query, googleApiKey, searchEngineId);
+        const results = await geminiSearch(query, geminiApiKey);
 
         return new Response(JSON.stringify({
           found: results.length > 0,
@@ -194,7 +254,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (searchError) {
-        console.error('Google keresési hiba:', searchError);
+        console.error('Gemini keresési hiba:', searchError);
         // Fallback URL mintákra ha a keresés sikertelen
         const { results, suggestions } = getPatternResults(termekNev, gyarto);
         return new Response(JSON.stringify({
@@ -202,7 +262,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           results,
           search_suggestions: suggestions,
           search_type: 'pattern_fallback',
-          warning: '⚠️ Google keresés sikertelen, URL minták alapján keresünk.',
+          warning: '⚠️ Gemini keresés sikertelen, URL minták alapján keresünk.',
           error: searchError instanceof Error ? searchError.message : 'Keresési hiba',
         }), {
           status: 200,
@@ -219,7 +279,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       results,
       search_suggestions: suggestions,
       search_type: 'pattern',
-      warning: '⚠️ Google keresés nincs konfigurálva. Ezek MINTA URL-ek a gyártó ismert struktúrája alapján. Állítsd be a GOOGLE_API_KEY és GOOGLE_SEARCH_ENGINE_ID környezeti változókat a valódi kereséshez.',
+      warning: '⚠️ Gemini keresés nincs konfigurálva. Ezek MINTA URL-ek. Állítsd be a GEMINI_API_KEY környezeti változót a valódi kereséshez.',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
