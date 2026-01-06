@@ -156,59 +156,57 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     }
 
     // === LÉPÉS 3: USP javaslatok összeállítása A GYÁRTÓI ADATOK ALAPJÁN ===
-    const uspPrompt = `A "${gyarto} ${termekNev}" TERMÉKSORHOZ készíts USP javaslatokat.
+    const uspPrompt = `A "${gyarto} ${termekNev}" TERMÉKSORHOZ készíts EGYEDI, MEGKÜLÖNBÖZTETŐ USP-ket.
 
-⚠️ LEGFONTOSABB: HASZNÁLD A GYÁRTÓ SAJÁT SZAVAIT!
-Az alábbi gyártói információkat kaptuk - ezekből készíts USP-ket:
+⚠️ KRITIKUS: NE ÍRJ ÁLTALÁNOSSÁGOKAT!
+Az alábbiak NEM USP-k, mert MINDEN gyártó mondhatja:
+❌ "Golyóscsapágyas motor" - ez alap, nem egyedi
+❌ "Csendes működés X dB" - minden ventilátor ír zajszintet
+❌ "Energiatakarékos" - mindenki mondja
+❌ "Megbízható" - üres szó
+❌ "Magas minőség" - üres szó
+❌ "IPX4 védelem" - szabványos, nem egyedi
 
-=== GYÁRTÓI HIVATALOS ÁLLÍTÁSOK (EZEKET HASZNÁLD!) ===
+✅ EZEK VISZONT VALÓDI USP-K (mert megkülönböztetnek):
+✅ "Függőlegesen és vízszintesen is szerelhető" - nem minden ventilátor tudja!
+✅ "Acélház epoxi bevonattal belül-kívül" - specifikus anyag és kivitel
+✅ "Hátrafelé hajlított lapátok légrektifikátorral" - technológiai különbség
+✅ "ISO 1940 szerinti dinamikus kiegyensúlyozás" - minőségi garancia
+✅ "Fali konzollal együtt szállítjuk" - praktikus előny
+✅ "Olasz gyártás és tervezés" - eredet
+✅ "Max +60°C-ig működik" - ha ez több mint a versenytársaknál
+
+=== GYÁRTÓI ÁLLÍTÁSOK ===
 ${JSON.stringify(manufacturerData, null, 2)}
 
-=== PDF ADATLAP JELLEMZŐK ===
+=== PDF JELLEMZŐK (keresd a SZÖVEGES leírásokat, ne a számokat!) ===
 ${extractedData ? JSON.stringify(extractedData, null, 2) : 'Nincs'}
 
-=== FORGALMAZÓI LEÍRÁSOK (másodlagos forrás) ===
+=== FORGALMAZÓI INFO ===
 ${JSON.stringify(competitorData, null, 2)}
 
 📋 FELADAT:
-1. Vedd a gyártó által TÉNYLEGESEN használt USP-ket/állításokat
-2. Fordítsd le magyarra és fogalmazd át értékesítési szöveggé
-3. NE találj ki új USP-ket - csak amit a gyártó mond!
-4. SOHA ne említs méretet/átmérőt!
-
-🎯 PÉLDÁK HELYES USP-KRE (a gyártói állítások alapján):
-
-Ha a gyártó azt mondja: "Vertical or horizontal installation"
-→ USP cím: "Rugalmas beépítés: függőlegesen és vízszintesen"
-→ Paragraph: "A ventilátor egyaránt felszerelhető függőleges és vízszintes pozícióban..."
-
-Ha a gyártó azt mondja: "Ball bearing EC motor"
-→ USP cím: "Tartós EC motor golyóscsapággyal"
-→ Paragraph: "Az EC technológiás motor golyóscsapágy ágyazással hosszú élettartamot..."
-
-Ha a gyártó azt mondja: "Suitable for continuous running"
-→ USP cím: "Folyamatos üzemre tervezve"
-→ Paragraph: "24 órás folyamatos működésre alkalmas, megbízható háztartási és ipari..."
+1. Keresd meg ami EGYEDI és MEGKÜLÖNBÖZTETŐ
+2. NE használj puszta számokat USP címnek (39 dB, 77W - ezek nem USP-k!)
+3. Fókuszálj: beszerelés, anyagok, technológia, tartozékok, származás, garanciák
+4. SOHA ne említs átmérőt!
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
   "suggestions": [
     {
       "id": "USP_1",
-      "title": "Magyar USP cím (max 50 karakter)",
-      "paragraph_1": "A technikai előny kifejtése (2-3 mondat). Hivatkozz a konkrét gyártói jellemzőre.",
-      "paragraph_2": "Gyakorlati haszon a vásárló számára (2-3 mondat).",
+      "title": "EGYEDI, MEGKÜLÖNBÖZTETŐ cím (ne szám, ne általánosság!)",
+      "paragraph_1": "Miért egyedi ez? Mi a konkrét előny?",
+      "paragraph_2": "Mit jelent ez a vásárlónak a gyakorlatban?",
       "source": "${gyarto}",
       "source_type": "manufacturer",
       "confidence": "high",
-      "original_claim": "A gyártó eredeti angol/olasz/német szövege",
-      "image_suggestion": "product/installation/technical/lifestyle - milyen típusú kép illene hozzá"
+      "original_claim": "Az eredeti állítás a gyártótól",
+      "image_suggestion": "product/installation/technical/lifestyle",
+      "why_unique": "Miért nem mondhatja ezt minden gyártó?"
     }
-  ],
-  "sources_summary": {
-    "manufacturer_claims_used": ["felhasznált gyártói állítások eredeti nyelven"],
-    "pdf_features_used": ["PDF-ből használt jellemzők"]
-  }
+  ]
 }`;
 
     const uspResponse = await client.messages.create({
