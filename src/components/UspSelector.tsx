@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { UspBlock, ExtractedData, PositionedData } from '../lib/types';
 import uspLibrary from '../data/usp-library.json';
 
@@ -16,6 +16,36 @@ interface UspFromLibrary {
   variables?: string[];
 }
 
+interface UspSuggestion {
+  id: string;
+  title: string;
+  paragraph_1: string;
+  paragraph_2?: string;
+  source: string;
+  source_type?: 'manufacturer' | 'seller' | 'inferred';
+  confidence: 'high' | 'medium' | 'low';
+  seo_keywords?: string[];
+  original_claim?: string;
+}
+
+interface CompetitorInsight {
+  source: string;
+  highlights: string[];
+}
+
+interface UsedUspRecord {
+  uspId: string;
+  title: string;
+  productName: string;
+  usedAt: string;
+}
+
+interface DuplicateCheckResult {
+  isDuplicate: boolean;
+  usedBy?: string[];
+  usp?: UspBlock;
+}
+
 export default function UspSelector() {
   const [availableUsps, setAvailableUsps] = useState<UspBlock[]>([]);
   const [selectedUsps, setSelectedUsps] = useState<UspBlock[]>([]);
@@ -23,16 +53,29 @@ export default function UspSelector() {
   const [positioning, setPositioning] = useState<PositionedData['positioning'] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Új state-ek a versenytárs elemzéshez
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [suggestions, setSuggestions] = useState<UspSuggestion[]>([]);
+  const [competitorInsights, setCompetitorInsights] = useState<CompetitorInsight[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // SEO deduplikáció state-ek
+  const [duplicateModal, setDuplicateModal] = useState<{
+    show: boolean;
+    usp: UspBlock | null;
+    usedBy: string[];
+  }>({ show: false, usp: null, usedBy: [] });
+  const [isRephrasing, setIsRephrasing] = useState(false);
+
   useEffect(() => {
-    // Load data from localStorage
     const storedExtracted = localStorage.getItem('ventilatorhaz_extracted');
     const storedPositioning = localStorage.getItem('ventilatorhaz_positioning');
-    
+
     if (storedExtracted) {
       const data = JSON.parse(storedExtracted) as ExtractedData[];
       setExtractedData(data);
     }
-    
+
     if (storedPositioning) {
       const pos = JSON.parse(storedPositioning) as PositionedData['positioning'];
       setPositioning(pos);
@@ -41,71 +84,52 @@ export default function UspSelector() {
     setIsLoading(false);
   }, []);
 
+  // USP matching when data changes
   useEffect(() => {
-    if (extractedData.length > 0) {
-      matchUsps();
-    }
-  }, [extractedData, positioning]);
+    if (extractedData.length === 0) return;
 
-  const getValue = (field: string): unknown => {
-    // First check extracted data
-    const item = extractedData.find(d => d.field === field);
-    if (item) return item.value;
-    
-    // Then check positioning
-    if (positioning && field in positioning) {
-      return (positioning as Record<string, unknown>)[field];
-    }
-    
-    return undefined;
-  };
-
-  const evaluateCondition = (condition: UspFromLibrary['condition']): boolean => {
-    const { field, operator, value } = condition;
-    const actualValue = getValue(field);
-    
-    if (actualValue === undefined) return false;
-    
-    switch (operator) {
-      case 'eq':
-        return actualValue === value;
-      case 'in':
-        return Array.isArray(value) && value.includes(actualValue);
-      case 'gt':
-        return typeof actualValue === 'number' && actualValue > (value as number);
-      case 'gte':
-        return typeof actualValue === 'number' && actualValue >= (value as number);
-      case 'lt':
-        return typeof actualValue === 'number' && actualValue < (value as number);
-      case 'lte':
-        return typeof actualValue === 'number' && actualValue <= (value as number);
-      case 'contains':
-        return Array.isArray(actualValue) && actualValue.includes(value);
-      default:
-        return false;
-    }
-  };
-
-  const replaceVariables = (text: string): string => {
-    // Replace variables in text with actual values
-    return text.replace(/\{(\w+)\}/g, (match, varName) => {
-      const value = getValue(varName);
-      if (value !== undefined) {
-        return String(value);
+    const getValue = (field: string): unknown => {
+      const item = extractedData.find(d => d.field === field);
+      if (item) return item.value;
+      if (positioning && field in positioning) {
+        return (positioning as Record<string, unknown>)[field];
       }
-      // Check positioning
-      if (positioning) {
-        const posValue = (positioning as Record<string, unknown>)[varName];
-        if (posValue !== undefined) return String(posValue);
-      }
-      return match; // Keep original if not found
-    });
-  };
+      return undefined;
+    };
 
-  const matchUsps = () => {
+    const evaluateCondition = (condition: UspFromLibrary['condition']): boolean => {
+      const { field, operator, value } = condition;
+      const actualValue = getValue(field);
+      if (actualValue === undefined) return false;
+
+      switch (operator) {
+        case 'eq': return actualValue === value;
+        case 'in': return Array.isArray(value) && value.includes(actualValue);
+        case 'gt': return typeof actualValue === 'number' && actualValue > (value as number);
+        case 'gte': return typeof actualValue === 'number' && actualValue >= (value as number);
+        case 'lt': return typeof actualValue === 'number' && actualValue < (value as number);
+        case 'lte': return typeof actualValue === 'number' && actualValue <= (value as number);
+        case 'contains': return Array.isArray(actualValue) && actualValue.includes(value);
+        default: return false;
+      }
+    };
+
+    const replaceVariables = (text: string): string => {
+      return text.replace(/\{(\w+)\}/g, (match, varName) => {
+        const value = getValue(varName);
+        if (value !== undefined) return String(value);
+        if (positioning) {
+          const posValue = (positioning as Record<string, unknown>)[varName];
+          if (posValue !== undefined) return String(posValue);
+        }
+        return match;
+      });
+    };
+
+    // Match USPs
     const matched: UspBlock[] = [];
     const categories = uspLibrary.usp_categories as Record<string, { usps: UspFromLibrary[] }>;
-    
+
     let order = 0;
     for (const categoryKey in categories) {
       const category = categories[categoryKey];
@@ -118,41 +142,265 @@ export default function UspSelector() {
             paragraph_2: usp.paragraph_2 ? replaceVariables(usp.paragraph_2) : undefined,
             image_url: `/images/usps/${usp.image_suggestion || 'default.jpg'}`,
             image_alt: replaceVariables(usp.title),
-            selected: true, // Auto-select matched USPs
+            selected: true,
             order: order++,
           });
         }
       }
     }
 
-    // Auto-select first 8 matched USPs
     const autoSelected = matched.slice(0, 8).map((usp, i) => ({ ...usp, selected: true, order: i }));
     const remaining = matched.slice(8).map(usp => ({ ...usp, selected: false }));
-    
+
     setSelectedUsps(autoSelected);
     setAvailableUsps(remaining);
+  }, [extractedData, positioning]);
+
+  const getValue = (field: string): unknown => {
+    const item = extractedData.find(d => d.field === field);
+    if (item) return item.value;
+
+    if (positioning && field in positioning) {
+      return (positioning as Record<string, unknown>)[field];
+    }
+
+    return undefined;
+  };
+
+  // SEO deduplikáció - használt USP-k kezelése
+  const USED_USP_MAX_AGE_DAYS = 30; // 30 napnál régebbi bejegyzések törlése
+
+  const getUsedUsps = (): UsedUspRecord[] => {
+    const stored = localStorage.getItem('ventilatorhaz_used_usps');
+    if (!stored) return [];
+
+    const usps: UsedUspRecord[] = JSON.parse(stored);
+    const now = new Date();
+    const maxAgeMs = USED_USP_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+    // Régi bejegyzések kiszűrése
+    const freshUsps = usps.filter(u => {
+      const usedAt = new Date(u.usedAt);
+      return now.getTime() - usedAt.getTime() < maxAgeMs;
+    });
+
+    // Ha voltak törölt bejegyzések, mentjük a tisztított listát
+    if (freshUsps.length !== usps.length) {
+      localStorage.setItem('ventilatorhaz_used_usps', JSON.stringify(freshUsps));
+    }
+
+    return freshUsps;
+  };
+
+  const saveUsedUsps = (usps: UsedUspRecord[]) => {
+    // Maximum 500 bejegyzés tárolása (biztonság kedvéért)
+    const limitedUsps = usps.slice(-500);
+    localStorage.setItem('ventilatorhaz_used_usps', JSON.stringify(limitedUsps));
+  };
+
+  const checkDuplicate = (usp: UspBlock): DuplicateCheckResult => {
+    const currentProduct = getValue('termek_nev') as string;
+    const usedUsps = getUsedUsps();
+
+    // Keresés id vagy title alapján
+    const matches = usedUsps.filter(
+      u => (u.uspId === usp.id || u.title === usp.title) && u.productName !== currentProduct
+    );
+
+    if (matches.length > 0) {
+      const usedBy = [...new Set(matches.map(m => m.productName))];
+      return { isDuplicate: true, usedBy, usp };
+    }
+
+    return { isDuplicate: false };
+  };
+
+  const handleRephraseUsp = async (usp: UspBlock) => {
+    setIsRephrasing(true);
+
+    try {
+      const termekNev = getValue('termek_nev') as string;
+
+      const response = await fetch('/api/rephrase-usp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: usp.title,
+          paragraph_1: usp.paragraph_1,
+          paragraph_2: usp.paragraph_2,
+          termekNev,
+          context: 'ventilátor termékleírás'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.rephrased) {
+        // Átfogalmazott USP hozzáadása
+        const rephrasedUsp: UspBlock = {
+          ...usp,
+          id: `REPHRASED_${usp.id}_${Date.now()}`,
+          title: result.rephrased.title,
+          paragraph_1: result.rephrased.paragraph_1,
+          paragraph_2: result.rephrased.paragraph_2 || usp.paragraph_2,
+          order: selectedUsps.length,
+        };
+
+        setSelectedUsps(prev => [...prev, rephrasedUsp]);
+        setAvailableUsps(prev => prev.filter(u => u.id !== usp.id));
+
+        // Mentés a használt USP-k közé
+        const usedUsps = getUsedUsps();
+        usedUsps.push({
+          uspId: rephrasedUsp.id,
+          title: rephrasedUsp.title,
+          productName: getValue('termek_nev') as string,
+          usedAt: new Date().toISOString()
+        });
+        saveUsedUsps(usedUsps);
+      } else {
+        alert('Hiba az átfogalmazás során: ' + (result.error || 'Ismeretlen hiba'));
+      }
+    } catch (err) {
+      console.error('Átfogalmazási hiba:', err);
+      alert('Hiba történt az átfogalmazás során');
+    } finally {
+      setIsRephrasing(false);
+      setDuplicateModal({ show: false, usp: null, usedBy: [] });
+    }
+  };
+
+  const addUspWithDuplicateCheck = (usp: UspBlock, fromSelected: boolean) => {
+    if (fromSelected) {
+      // Törlés esetén nem kell ellenőrizni
+      setSelectedUsps(prev => prev.filter(u => u.id !== usp.id));
+      setAvailableUsps(prev => [...prev, { ...usp, selected: false }]);
+      return;
+    }
+
+    if (selectedUsps.length >= 12) {
+      alert('Maximum 12 USP-t választhatsz ki!');
+      return;
+    }
+
+    // Duplikáció ellenőrzés
+    const duplicateCheck = checkDuplicate(usp);
+
+    if (duplicateCheck.isDuplicate) {
+      setDuplicateModal({
+        show: true,
+        usp,
+        usedBy: duplicateCheck.usedBy || []
+      });
+      return;
+    }
+
+    // Nincs duplikáció - hozzáadás
+    addUspDirectly(usp);
+  };
+
+  const addUspDirectly = (usp: UspBlock) => {
+    setAvailableUsps(prev => prev.filter(u => u.id !== usp.id));
+    setSelectedUsps(prev => [...prev, { ...usp, selected: true, order: prev.length }]);
+
+    // Mentés a használt USP-k közé
+    const usedUsps = getUsedUsps();
+    usedUsps.push({
+      uspId: usp.id,
+      title: usp.title,
+      productName: getValue('termek_nev') as string,
+      usedAt: new Date().toISOString()
+    });
+    saveUsedUsps(usedUsps);
+  };
+
+  // Versenytárs elemzés és USP javaslatok
+  const handleAnalyzeCompetitors = async () => {
+    const termekNev = getValue('termek_nev') as string;
+    const gyarto = getValue('gyarto') as string;
+    const kategoria = getValue('kategoria') as string;
+
+    if (!termekNev || !gyarto) {
+      alert('Nincs elegendő termék adat az elemzéshez');
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      const extractedObj: Record<string, unknown> = {};
+      extractedData.forEach(d => { extractedObj[d.field] = d.value; });
+
+      const response = await fetch('/api/analyze-competitors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          termekNev,
+          gyarto,
+          kategoria,
+          extractedData: extractedObj
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.suggestions) {
+        setSuggestions(result.suggestions);
+      }
+      if (result.competitor_insights) {
+        setCompetitorInsights(result.competitor_insights);
+      }
+      setShowSuggestions(true);
+    } catch (err) {
+      console.error('Elemzési hiba:', err);
+      alert('Hiba történt az elemzés során');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // USP javaslat hozzáadása a kiválasztottakhoz
+  const addSuggestionToSelected = (suggestion: UspSuggestion) => {
+    if (selectedUsps.length >= 12) {
+      alert('Maximum 12 USP-t választhatsz ki!');
+      return;
+    }
+
+    const newUsp: UspBlock = {
+      id: `SUGGESTED_${suggestion.id}`,
+      title: suggestion.title,
+      paragraph_1: suggestion.paragraph_1,
+      paragraph_2: suggestion.paragraph_2,
+      image_url: '/images/usps/default.jpg',
+      image_alt: suggestion.title,
+      selected: true,
+      order: selectedUsps.length,
+    };
+
+    setSelectedUsps(prev => [...prev, newUsp]);
+    setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+  };
+
+  // USP mentése a könyvtárba (localStorage-ba egyelőre)
+  const saveSuggestionToLibrary = (suggestion: UspSuggestion) => {
+    const savedSuggestions = JSON.parse(localStorage.getItem('ventilatorhaz_custom_usps') || '[]');
+    savedSuggestions.push({
+      ...suggestion,
+      savedAt: new Date().toISOString()
+    });
+    localStorage.setItem('ventilatorhaz_custom_usps', JSON.stringify(savedSuggestions));
+    alert(`"${suggestion.title}" mentve a könyvtárba!`);
   };
 
   const toggleUsp = (usp: UspBlock, fromSelected: boolean) => {
-    if (fromSelected) {
-      // Remove from selected
-      setSelectedUsps(prev => prev.filter(u => u.id !== usp.id));
-      setAvailableUsps(prev => [...prev, { ...usp, selected: false }]);
-    } else {
-      // Add to selected
-      if (selectedUsps.length >= 12) {
-        alert('Maximum 12 USP-t választhatsz ki!');
-        return;
-      }
-      setAvailableUsps(prev => prev.filter(u => u.id !== usp.id));
-      setSelectedUsps(prev => [...prev, { ...usp, selected: true, order: prev.length }]);
-    }
+    // SEO deduplikáció ellenőrzéssel
+    addUspWithDuplicateCheck(usp, fromSelected);
   };
 
   const moveUsp = (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= selectedUsps.length) return;
-    
+
     const newSelected = [...selectedUsps];
     [newSelected[index], newSelected[newIndex]] = [newSelected[newIndex], newSelected[index]];
     newSelected.forEach((usp, i) => usp.order = i);
@@ -186,6 +434,133 @@ export default function UspSelector() {
 
   return (
     <div>
+      {/* Versenytárs elemzés gomb */}
+      <div className="card" style={{ marginBottom: 'var(--space-lg)', background: 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0, marginBottom: 'var(--space-xs)' }}>🔍 Versenytárs elemzés & USP javaslatok</h3>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+              AI elemzés a versenytársak és a gyártó alapján
+            </p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleAnalyzeCompetitors}
+            disabled={isAnalyzing}
+          >
+            {isAnalyzing ? (
+              <>
+                <span className="spinner"></span>
+                Elemzés...
+              </>
+            ) : (
+              '🚀 Elemzés indítása'
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* AI javaslatok szekció */}
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="card" style={{ marginBottom: 'var(--space-lg)', border: '2px solid var(--color-primary)' }}>
+          <div className="card-header">
+            <h3 style={{ margin: 0 }}>✨ AI USP javaslatok ({suggestions.length})</h3>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowSuggestions(false)}
+              style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
+            >
+              Bezárás
+            </button>
+          </div>
+
+          {competitorInsights.length > 0 && (
+            <div style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-sm)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+              <strong style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Versenytárs infók:</strong>
+              {competitorInsights.map((insight, i) => (
+                <div key={i} style={{ fontSize: '0.75rem', marginTop: 'var(--space-xs)' }}>
+                  <strong>{insight.source}:</strong> {insight.highlights.join(', ')}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            {suggestions.map((suggestion) => (
+              <div
+                key={suggestion.id}
+                style={{
+                  padding: 'var(--space-md)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-bg-primary)'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-sm)' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 'var(--space-xs)' }}>{suggestion.title}</div>
+                    <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+                      {/* Source type badge - most important */}
+                      <span
+                        className="badge"
+                        style={{
+                          fontSize: '0.65rem',
+                          background: suggestion.source_type === 'manufacturer'
+                            ? 'var(--color-success)'
+                            : suggestion.source_type === 'seller'
+                              ? 'var(--color-primary)'
+                              : 'var(--color-bg-tertiary)',
+                          color: suggestion.source_type === 'manufacturer' || suggestion.source_type === 'seller' ? 'white' : 'inherit'
+                        }}
+                      >
+                        {suggestion.source_type === 'manufacturer' ? '🏭 Gyártó' :
+                         suggestion.source_type === 'seller' ? '🛒 Forgalmazó' :
+                         '💡 Következtetett'}
+                      </span>
+                      <span className={`badge ${suggestion.confidence === 'high' ? 'badge-success' : suggestion.confidence === 'medium' ? 'badge-warning' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
+                        {suggestion.confidence === 'high' ? 'Magas' : suggestion.confidence === 'medium' ? 'Közepes' : 'Alacsony'}
+                      </span>
+                      <span className="badge" style={{ fontSize: '0.65rem', background: 'var(--color-bg-tertiary)' }}>
+                        {suggestion.source}
+                      </span>
+                    </div>
+                    {suggestion.original_claim && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)', fontStyle: 'italic' }}>
+                        Eredeti: "{suggestion.original_claim}"
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                    <button
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
+                      onClick={() => addSuggestionToSelected(suggestion)}
+                    >
+                      + Hozzáadás
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
+                      onClick={() => saveSuggestionToLibrary(suggestion)}
+                    >
+                      💾 Könyvtárba
+                    </button>
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                  {suggestion.paragraph_1}
+                </p>
+                {suggestion.paragraph_2 && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0, marginTop: 'var(--space-xs)' }}>
+                    {suggestion.paragraph_2}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
         <div className="card" style={{ flex: 1, textAlign: 'center' }}>
@@ -211,17 +586,17 @@ export default function UspSelector() {
         <div>
           <h3 style={{ marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <span style={{ color: 'var(--color-success)' }}>✓</span> Kiválasztott USP-k
-            <span style={{ 
-              fontSize: '0.75rem', 
-              padding: '2px 8px', 
-              background: 'var(--color-bg-tertiary)', 
+            <span style={{
+              fontSize: '0.75rem',
+              padding: '2px 8px',
+              background: 'var(--color-bg-tertiary)',
               borderRadius: '9999px',
               color: 'var(--color-text-muted)'
             }}>
               {selectedUsps.length}/12
             </span>
           </h3>
-          
+
           {selectedUsps.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
               Még nincs kiválasztott USP
@@ -229,17 +604,17 @@ export default function UspSelector() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               {selectedUsps.map((usp, index) => (
-                <div 
+                <div
                   key={usp.id}
                   className="usp-card selected"
                   style={{ cursor: 'default' }}
                 >
                   <div className="usp-card-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-                      <span style={{ 
-                        width: 24, 
-                        height: 24, 
-                        background: 'var(--color-success)', 
+                      <span style={{
+                        width: 24,
+                        height: 24,
+                        background: usp.id.startsWith('SUGGESTED_') ? 'var(--color-primary)' : 'var(--color-success)',
                         color: 'white',
                         borderRadius: '50%',
                         display: 'flex',
@@ -251,9 +626,12 @@ export default function UspSelector() {
                         {index + 1}
                       </span>
                       <span className="usp-card-title">{usp.title}</span>
+                      {usp.id.startsWith('SUGGESTED_') && (
+                        <span className="badge" style={{ fontSize: '0.6rem', background: 'var(--color-primary)', color: 'white' }}>AI</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-                      <button 
+                      <button
                         className="btn btn-icon btn-secondary"
                         onClick={() => moveUsp(index, 'up')}
                         disabled={index === 0}
@@ -261,7 +639,7 @@ export default function UspSelector() {
                       >
                         ↑
                       </button>
-                      <button 
+                      <button
                         className="btn btn-icon btn-secondary"
                         onClick={() => moveUsp(index, 'down')}
                         disabled={index === selectedUsps.length - 1}
@@ -269,7 +647,7 @@ export default function UspSelector() {
                       >
                         ↓
                       </button>
-                      <button 
+                      <button
                         className="btn btn-icon"
                         onClick={() => toggleUsp(usp, true)}
                         style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'var(--color-error)' }}
@@ -292,7 +670,7 @@ export default function UspSelector() {
           <h3 style={{ marginBottom: 'var(--space-md)' }}>
             📚 Elérhető USP-k
           </h3>
-          
+
           {availableUsps.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
               Minden releváns USP ki van választva
@@ -300,7 +678,7 @@ export default function UspSelector() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               {availableUsps.map((usp) => (
-                <div 
+                <div
                   key={usp.id}
                   className="usp-card"
                   onClick={() => toggleUsp(usp, false)}
@@ -308,7 +686,7 @@ export default function UspSelector() {
                 >
                   <div className="usp-card-header">
                     <span className="usp-card-title">{usp.title}</span>
-                    <button 
+                    <button
                       className="btn btn-icon btn-primary"
                       style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                     >
@@ -325,12 +703,11 @@ export default function UspSelector() {
         </div>
       </div>
 
-      {/* Warning if too few or too many */}
       {selectedUsps.length < 5 && (
-        <div style={{ 
-          marginTop: 'var(--space-lg)', 
-          padding: 'var(--space-md)', 
-          background: 'rgba(245, 158, 11, 0.1)', 
+        <div style={{
+          marginTop: 'var(--space-lg)',
+          padding: 'var(--space-md)',
+          background: 'rgba(245, 158, 11, 0.1)',
           borderRadius: 'var(--radius-md)',
           color: 'var(--color-warning)',
           fontSize: '0.875rem'
@@ -339,17 +716,104 @@ export default function UspSelector() {
         </div>
       )}
 
-      {/* Navigation */}
       <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'space-between', marginTop: 'var(--space-xl)' }}>
         <a href="/position" className="btn btn-secondary">← Vissza</a>
-        <button 
-          className="btn btn-success" 
+        <button
+          className="btn btn-success"
           onClick={handleProceed}
           disabled={selectedUsps.length < 3}
         >
           Tovább a HTML generáláshoz →
         </button>
       </div>
+
+      {/* SEO duplikáció figyelmeztetés modal */}
+      {duplicateModal.show && duplicateModal.usp && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'var(--color-bg-primary)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-xl)',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', color: 'var(--color-warning)' }}>
+              ⚠️ SEO figyelmeztetés: Duplikált tartalom
+            </h3>
+
+            <p style={{ marginBottom: 'var(--space-md)', color: 'var(--color-text-muted)' }}>
+              Ez az USP már használva volt más termékeknél:
+            </p>
+
+            <div style={{
+              background: 'var(--color-bg-secondary)',
+              padding: 'var(--space-sm)',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: 'var(--space-md)'
+            }}>
+              <strong style={{ fontSize: '0.9rem' }}>{duplicateModal.usp.title}</strong>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)' }}>
+                Használva: {duplicateModal.usedBy.join(', ')}
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-lg)' }}>
+              A duplikált szöveg káros a SEO-ra. Válassz az alábbi lehetőségek közül:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => handleRephraseUsp(duplicateModal.usp!)}
+                disabled={isRephrasing}
+                style={{ width: '100%' }}
+              >
+                {isRephrasing ? (
+                  <>
+                    <span className="spinner"></span>
+                    Átfogalmazás...
+                  </>
+                ) : (
+                  '✨ Átfogalmazás AI-val (ajánlott)'
+                )}
+              </button>
+
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  addUspDirectly(duplicateModal.usp!);
+                  setDuplicateModal({ show: false, usp: null, usedBy: [] });
+                }}
+                disabled={isRephrasing}
+                style={{ width: '100%' }}
+              >
+                📋 Használat változatlanul (nem ajánlott)
+              </button>
+
+              <button
+                className="btn"
+                onClick={() => setDuplicateModal({ show: false, usp: null, usedBy: [] })}
+                disabled={isRephrasing}
+                style={{ width: '100%', color: 'var(--color-text-muted)' }}
+              >
+                ✕ Mégsem
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
