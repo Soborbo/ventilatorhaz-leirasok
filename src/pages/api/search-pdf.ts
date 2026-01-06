@@ -128,6 +128,78 @@ function getGeminiApiKey(locals: unknown): string | undefined {
 }
 
 /**
+ * Check if URL is a Google grounding redirect URL
+ */
+function isGoogleRedirectUrl(url: string): boolean {
+  return url.includes('vertexaisearch.cloud.google.com/grounding-api-redirect');
+}
+
+/**
+ * Follow redirect URL to get the actual destination
+ */
+async function resolveRedirectUrl(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'manual',
+    });
+
+    // Check for redirect Location header
+    const location = response.headers.get('location');
+    if (location) {
+      console.log('Resolved redirect:', url.slice(0, 50), '->', location);
+      return location;
+    }
+
+    // If no redirect, try GET request
+    const getResponse = await fetch(url, {
+      redirect: 'manual',
+    });
+    const getLocation = getResponse.headers.get('location');
+    if (getLocation) {
+      console.log('Resolved redirect (GET):', url.slice(0, 50), '->', getLocation);
+      return getLocation;
+    }
+
+    // No redirect found, return original
+    return url;
+  } catch (error) {
+    console.error('Failed to resolve redirect:', error);
+    return url;
+  }
+}
+
+/**
+ * Resolve all Google redirect URLs in results
+ */
+async function resolveAllRedirects(results: PdfResult[], preferredDomain?: string): Promise<PdfResult[]> {
+  const resolvedResults: PdfResult[] = [];
+
+  for (const result of results) {
+    if (isGoogleRedirectUrl(result.url)) {
+      const resolvedUrl = await resolveRedirectUrl(result.url);
+      try {
+        const hostname = new URL(resolvedUrl).hostname;
+        const isManufacturer = preferredDomain && hostname.includes(preferredDomain);
+        resolvedResults.push({
+          url: resolvedUrl,
+          title: result.title,
+          source: hostname,
+          snippet: isManufacturer ? '🏭 Gyártói forrás' : result.snippet,
+        });
+      } catch {
+        // If URL parsing fails, keep original
+        resolvedResults.push(result);
+      }
+    } else {
+      resolvedResults.push(result);
+    }
+  }
+
+  return resolvedResults;
+}
+
+/**
  * Call Gemini API with search grounding
  */
 async function callGeminiWithSearch(prompt: string, apiKey: string): Promise<GeminiResponse> {
@@ -261,8 +333,23 @@ Return any relevant URLs you find.`;
       throw new Error(data.error.message);
     }
 
-    const results = extractResultsFromGemini(data, preferredDomain);
-    console.log('Extracted results:', results.length);
+    const rawResults = extractResultsFromGemini(data, preferredDomain);
+    console.log('Extracted results:', rawResults.length);
+
+    // Resolve Google redirect URLs to get actual destinations
+    const results = await resolveAllRedirects(rawResults, preferredDomain);
+    console.log('Resolved results:', results.length);
+
+    // Re-sort after resolving (manufacturer domain first, then PDFs)
+    results.sort((a, b) => {
+      const aIsPreferred = preferredDomain && a.source.includes(preferredDomain) ? 0 : 1;
+      const bIsPreferred = preferredDomain && b.source.includes(preferredDomain) ? 0 : 1;
+      if (aIsPreferred !== bIsPreferred) return aIsPreferred - bIsPreferred;
+
+      const aIsPdf = a.url.toLowerCase().includes('.pdf') ? 0 : 1;
+      const bIsPdf = b.url.toLowerCase().includes('.pdf') ? 0 : 1;
+      return aIsPdf - bIsPdf;
+    });
 
     return { results, searchType: 'google' };
   } catch (err) {
