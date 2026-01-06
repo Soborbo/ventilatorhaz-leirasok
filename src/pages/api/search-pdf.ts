@@ -109,8 +109,30 @@ function getGeminiApiKey(locals: unknown): string | undefined {
 
 /**
  * Search using Gemini API with Google Search Grounding
+ * Prioritizes manufacturer website, then falls back to general search
  */
-async function geminiSearch(query: string, apiKey: string): Promise<PdfResult[]> {
+async function geminiSearch(query: string, gyarto: string, apiKey: string): Promise<PdfResult[]> {
+  // Get manufacturer domain if known
+  const manufacturerPattern = MANUFACTURER_PATTERNS[gyarto];
+  const manufacturerDomain = manufacturerPattern?.baseUrl.replace('https://', '').replace('http://', '') || '';
+
+  const searchPrompt = manufacturerDomain
+    ? `Find PDF datasheet for "${query}" ONLY from the manufacturer website: ${manufacturerDomain}
+
+Search specifically on site:${manufacturerDomain} for:
+- Official product datasheet PDF
+- Technical specifications PDF
+- Product documentation PDF
+
+IMPORTANT: Only return URLs from ${manufacturerDomain}.
+Return ONLY the PDF URLs you find, one per line. No explanations.`
+    : `Find PDF datasheet download links for this ventilator/fan product: "${query}"
+
+Search for official manufacturer PDF datasheets, technical specifications, and product documentation.
+Focus on direct .pdf file links from the manufacturer's website.
+
+Return ONLY the URLs you find, one per line. No explanations needed.`;
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
@@ -121,12 +143,7 @@ async function geminiSearch(query: string, apiKey: string): Promise<PdfResult[]>
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Find PDF datasheet download links for this ventilator/fan product: "${query}"
-
-Search for official manufacturer PDF datasheets, technical specifications, and product documentation.
-Focus on direct .pdf file links from the manufacturer's website.
-
-Return ONLY the URLs you find, one per line. No explanations needed.`
+            text: searchPrompt
           }]
         }],
         tools: [{
@@ -242,7 +259,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (geminiApiKey) {
       try {
         const query = `${gyarto} ${termekNev} datasheet PDF`;
-        const results = await geminiSearch(query, geminiApiKey);
+        const results = await geminiSearch(query, gyarto, geminiApiKey);
 
         return new Response(JSON.stringify({
           found: results.length > 0,

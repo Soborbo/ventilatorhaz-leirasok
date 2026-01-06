@@ -10,6 +10,26 @@ interface AnalyzeRequest {
   extractedData?: Record<string, unknown>;
 }
 
+/**
+ * Extract size (diameter) from product name or data
+ * Examples: "AXC 100" -> 100, "Elix 150T" -> 150
+ */
+function extractSizeFromProduct(termekNev: string, extractedData?: Record<string, unknown>): number | null {
+  // First check extractedData for csoatmero_mm
+  if (extractedData?.csoatmero_mm) {
+    return Number(extractedData.csoatmero_mm);
+  }
+
+  // Try to extract from product name - look for common patterns
+  // Pattern: numbers like 100, 125, 150, 160, 200, 250, 315, 400
+  const sizeMatch = termekNev.match(/\b(80|100|120|125|150|160|200|250|315|350|400|450|500)\b/);
+  if (sizeMatch) {
+    return parseInt(sizeMatch[1], 10);
+  }
+
+  return null;
+}
+
 interface UspSuggestion {
   id: string;
   title: string;
@@ -53,8 +73,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    // Extract product size for fair comparison
+    const productSize = extractSizeFromProduct(termekNev, extractedData);
+    const sizeContext = productSize
+      ? `\n\nFONTOS - MÉRET SZERINTI ÖSSZEHASONLÍTÁS:
+Ez egy ${productSize}mm csőátmérőjű ventilátor.
+Csak AZONOS vagy hasonló méretű (${productSize}mm ±25mm) ventilátorokat hasonlíts össze!
+Ne hasonlíts 100mm-es ventilátort 400mm-esekkel - az nem releváns.
+A légszállítás, zajszint és teljesítmény értékeket CSAK az adott méretkategórián belül értékeld.`
+      : '';
+
     // Első lépés: versenytárs információk gyűjtése web search-el
-    const searchPrompt = `Keress információkat erről a ventilátorról: "${gyarto} ${termekNev}" (kategória: ${kategoria})
+    const searchPrompt = `Keress információkat erről a ventilátorról: "${gyarto} ${termekNev}" (kategória: ${kategoria})${sizeContext}
 
 Nézd meg:
 1. A gyártó hivatalos oldalát (${gyarto.toLowerCase()}.com, ${gyarto.toLowerCase()}.it, ${gyarto.toLowerCase()}.de stb.)
@@ -99,11 +129,18 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     }
 
     // Második lépés: USP javaslatok generálása
+    const sizeUspContext = productSize
+      ? `\n\nMÉRET KONTEXTUS: Ez egy ${productSize}mm-es ventilátor.
+Az USP-ket és összehasonlításokat CSAK a ${productSize}mm méretkategóriára vonatkoztasd!
+Pl. "kategóriájában kiemelkedő légszállítás" = a ${productSize}mm-es ventilátorok között, NEM az összes méret között.
+Ha légszállítást, zajszintet vagy teljesítményt említesz, mindig a ${productSize}mm-es kategóriára vonatkozzon.`
+      : '';
+
     const uspPrompt = `A következő ventilátor termékhez generálj USP (Unique Selling Point) javaslatokat:
 
 Termék: ${gyarto} ${termekNev}
 Kategória: ${kategoria}
-${extractedData ? `Műszaki adatok: ${JSON.stringify(extractedData)}` : ''}
+${extractedData ? `Műszaki adatok: ${JSON.stringify(extractedData)}` : ''}${sizeUspContext}
 
 Versenytárs kutatás eredménye:
 ${JSON.stringify(competitorData, null, 2)}
@@ -156,7 +193,9 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     return new Response(JSON.stringify({
       success: true,
       ...result,
-      competitor_data: competitorData
+      competitor_data: competitorData,
+      product_size_mm: productSize,
+      size_context: productSize ? `${productSize}mm méretkategória` : null
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

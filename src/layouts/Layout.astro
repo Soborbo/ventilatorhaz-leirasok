@@ -1,4 +1,6 @@
 ---
+import ApiStatus from '../components/ApiStatus';
+
 interface Props {
   title: string;
   activePhase?: number;
@@ -111,11 +113,8 @@ const phases = [
       
       <div class="sidebar-footer" style="position: absolute; bottom: var(--space-lg); left: var(--space-lg); right: var(--space-lg);">
         <div style="padding: var(--space-md); background: var(--color-bg-tertiary); border-radius: var(--radius-md); font-size: 0.75rem;">
-          <div style="color: var(--color-text-muted); margin-bottom: var(--space-xs);">API státusz</div>
-          <div style="display: flex; align-items: center; gap: var(--space-xs);">
-            <span style="width: 8px; height: 8px; background: var(--color-success); border-radius: 50%;"></span>
-            Claude API aktív
-          </div>
+          <div style="color: var(--color-text-muted); margin-bottom: var(--space-sm);">API státusz</div>
+          <ApiStatus client:load />
         </div>
       </div>
     </aside>
