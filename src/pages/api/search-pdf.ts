@@ -163,65 +163,27 @@ function extractResultsFromGemini(data: GeminiResponse, preferredDomain?: string
   const results: PdfResult[] = [];
   const seenUrls = new Set<string>();
 
-  // Extract URLs from grounding metadata
+  console.log('Gemini response:', JSON.stringify(data, null, 2).slice(0, 2000));
+
+  // Extract ALL URLs from grounding metadata (not just PDFs)
   const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks;
+  console.log('Grounding chunks count:', groundingChunks?.length || 0);
+
   if (groundingChunks) {
     for (const chunk of groundingChunks) {
       const uri = chunk.web?.uri;
+      console.log('Found grounding URL:', uri);
+
       if (uri && !seenUrls.has(uri)) {
-        // Check if it's a PDF or datasheet related
-        const lowerUri = uri.toLowerCase();
-        const isPdfRelated = lowerUri.includes('.pdf') ||
-                           lowerUri.includes('datasheet') ||
-                           lowerUri.includes('download') ||
-                           lowerUri.includes('technical') ||
-                           lowerUri.includes('specification') ||
-                           lowerUri.includes('scheda') ||
-                           lowerUri.includes('katalog');
-
-        if (isPdfRelated || (preferredDomain && uri.includes(preferredDomain))) {
-          seenUrls.add(uri);
-          try {
-            const hostname = new URL(uri).hostname;
-            results.push({
-              url: uri,
-              title: chunk.web?.title || 'Adatlap',
-              source: hostname,
-              snippet: preferredDomain && hostname.includes(preferredDomain) ? '🏭 Gyártói forrás' : undefined,
-            });
-          } catch {
-            // Invalid URL
-          }
-        }
-      }
-    }
-  }
-
-  // Extract URLs from text response
-  const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  // Match URLs more broadly
-  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
-  const textUrls = textResponse.match(urlRegex) || [];
-
-  for (const url of textUrls) {
-    // Clean URL (remove trailing punctuation)
-    const cleanUrl = url.replace(/[.,;:!?)]+$/, '');
-
-    if (!seenUrls.has(cleanUrl)) {
-      const lowerUrl = cleanUrl.toLowerCase();
-      const isPdfRelated = lowerUrl.includes('.pdf') ||
-                          lowerUrl.includes('datasheet') ||
-                          lowerUrl.includes('download');
-
-      if (isPdfRelated) {
-        seenUrls.add(cleanUrl);
+        seenUrls.add(uri);
         try {
-          const hostname = new URL(cleanUrl).hostname;
+          const hostname = new URL(uri).hostname;
+          const isManufacturer = preferredDomain && hostname.includes(preferredDomain);
           results.push({
-            url: cleanUrl,
-            title: 'PDF adatlap',
+            url: uri,
+            title: chunk.web?.title || 'Találat',
             source: hostname,
+            snippet: isManufacturer ? '🏭 Gyártói forrás' : undefined,
           });
         } catch {
           // Invalid URL
@@ -230,78 +192,81 @@ function extractResultsFromGemini(data: GeminiResponse, preferredDomain?: string
     }
   }
 
-  // Sort: preferred domain first
-  if (preferredDomain) {
-    results.sort((a, b) => {
-      const aIsPreferred = a.source.includes(preferredDomain) ? 0 : 1;
-      const bIsPreferred = b.source.includes(preferredDomain) ? 0 : 1;
-      return aIsPreferred - bIsPreferred;
-    });
+  // Extract URLs from text response
+  const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  console.log('Text response:', textResponse.slice(0, 500));
+
+  // Match URLs more broadly
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]()]+/gi;
+  const textUrls = textResponse.match(urlRegex) || [];
+  console.log('Found text URLs:', textUrls.length);
+
+  for (const url of textUrls) {
+    // Clean URL (remove trailing punctuation)
+    const cleanUrl = url.replace(/[.,;:!?)]+$/, '');
+
+    if (!seenUrls.has(cleanUrl)) {
+      seenUrls.add(cleanUrl);
+      try {
+        const hostname = new URL(cleanUrl).hostname;
+        const isManufacturer = preferredDomain && hostname.includes(preferredDomain);
+        results.push({
+          url: cleanUrl,
+          title: 'Találat',
+          source: hostname,
+          snippet: isManufacturer ? '🏭 Gyártói forrás' : undefined,
+        });
+      } catch {
+        // Invalid URL
+      }
+    }
   }
+
+  // Sort: preferred domain first, then PDFs
+  results.sort((a, b) => {
+    const aIsPreferred = preferredDomain && a.source.includes(preferredDomain) ? 0 : 1;
+    const bIsPreferred = preferredDomain && b.source.includes(preferredDomain) ? 0 : 1;
+    if (aIsPreferred !== bIsPreferred) return aIsPreferred - bIsPreferred;
+
+    const aIsPdf = a.url.toLowerCase().includes('.pdf') ? 0 : 1;
+    const bIsPdf = b.url.toLowerCase().includes('.pdf') ? 0 : 1;
+    return aIsPdf - bIsPdf;
+  });
 
   return results;
 }
 
 /**
  * Search using Gemini API with Google Search Grounding
- * First tries manufacturer site, then general search
  */
 async function geminiSearch(termekNev: string, gyarto: string, apiKey: string): Promise<{ results: PdfResult[]; searchType: string }> {
   const manufacturerPattern = MANUFACTURER_PATTERNS[gyarto];
   const preferredDomain = manufacturerPattern?.domain;
 
-  // Step 1: Search on manufacturer website first
-  if (preferredDomain) {
-    const manufacturerPrompt = `Keresd meg a "${gyarto} ${termekNev}" termék PDF adatlapját!
+  // Simple, direct search prompt
+  const searchPrompt = `Search for: ${gyarto} ${termekNev} PDF datasheet
 
-Keress CSAK itt: site:${preferredDomain}
+Find the official product datasheet PDF for this ventilator/fan.
+Look for .pdf download links.
 
-Keress:
-- PDF adatlap (datasheet)
-- Műszaki specifikáció
-- Termék dokumentáció
-- Letöltés link
+Return any relevant URLs you find.`;
 
-Add meg a talált PDF URL-eket. Ha találsz .pdf linket, azt mindenképpen add meg!`;
-
-    try {
-      const manufacturerData = await callGeminiWithSearch(manufacturerPrompt, apiKey);
-
-      if (manufacturerData.error) {
-        console.error('Gemini manufacturer search error:', manufacturerData.error);
-      } else {
-        const manufacturerResults = extractResultsFromGemini(manufacturerData, preferredDomain);
-        if (manufacturerResults.length > 0) {
-          return { results: manufacturerResults, searchType: 'manufacturer' };
-        }
-      }
-    } catch (err) {
-      console.error('Manufacturer search failed:', err);
-    }
-  }
-
-  // Step 2: General search if manufacturer search didn't work
-  const generalPrompt = `Keresd meg a "${gyarto} ${termekNev}" ventilátor PDF adatlapját!
-
-Keress:
-1. A gyártó hivatalos oldalán (${gyarto.toLowerCase()}.com, ${gyarto.toLowerCase()}.it, ${gyarto.toLowerCase()}.de)
-2. Magyar webshopokban (ventilatorhaz.hu, szelep.hu, szelloztetes.hu)
-3. Bármilyen megbízható forráson
-
-Fontos: PDF fájlokat keresek - datasheet, műszaki adatlap, specifikáció.
-Add meg az összes talált PDF URL-t!`;
+  console.log('Searching with prompt:', searchPrompt);
 
   try {
-    const generalData = await callGeminiWithSearch(generalPrompt, apiKey);
+    const data = await callGeminiWithSearch(searchPrompt, apiKey);
 
-    if (generalData.error) {
-      throw new Error(generalData.error.message);
+    if (data.error) {
+      console.error('Gemini API error:', data.error);
+      throw new Error(data.error.message);
     }
 
-    const generalResults = extractResultsFromGemini(generalData, preferredDomain);
-    return { results: generalResults, searchType: 'general' };
+    const results = extractResultsFromGemini(data, preferredDomain);
+    console.log('Extracted results:', results.length);
+
+    return { results, searchType: 'google' };
   } catch (err) {
-    console.error('General search failed:', err);
+    console.error('Gemini search failed:', err);
     throw err;
   }
 }
@@ -379,7 +344,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           found: true,
           results,
           search_type: 'google',
-          search_details: searchType === 'manufacturer' ? 'Gyártói oldalról' : 'Általános keresés',
+          result_count: results.length,
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
