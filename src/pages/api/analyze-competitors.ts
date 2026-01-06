@@ -10,26 +10,6 @@ interface AnalyzeRequest {
   extractedData?: Record<string, unknown>;
 }
 
-/**
- * Extract size (diameter) from product name or data
- * Examples: "AXC 100" -> 100, "Elix 150T" -> 150
- */
-function extractSizeFromProduct(termekNev: string, extractedData?: Record<string, unknown>): number | null {
-  // First check extractedData for csoatmero_mm
-  if (extractedData?.csoatmero_mm) {
-    return Number(extractedData.csoatmero_mm);
-  }
-
-  // Try to extract from product name - look for common patterns
-  // Pattern: numbers like 100, 125, 150, 160, 200, 250, 315, 400
-  const sizeMatch = termekNev.match(/\b(80|100|120|125|150|160|200|250|315|350|400|450|500)\b/);
-  if (sizeMatch) {
-    return parseInt(sizeMatch[1], 10);
-  }
-
-  return null;
-}
-
 // Manufacturer domains for prioritization
 const MANUFACTURER_DOMAINS: Record<string, string[]> = {
   'Elicent': ['elicent.it', 'elicent.com'],
@@ -69,12 +49,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Extract product size for fair comparison
-    const productSize = extractSizeFromProduct(termekNev, extractedData);
-    const sizeContext = productSize
-      ? `\nEz egy ${productSize}mm csőátmérőjű ventilátor. Csak azonos méretű (${productSize}mm) termékeket hasonlíts!`
-      : '';
-
     // Get manufacturer domains
     const manufacturerDomains = MANUFACTURER_DOMAINS[gyarto] || [];
     const manufacturerSites = manufacturerDomains.length > 0
@@ -82,20 +56,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : `${gyarto.toLowerCase()}.com, ${gyarto.toLowerCase()}.it, ${gyarto.toLowerCase()}.de`;
 
     // === LÉPÉS 1: Gyártói információk (LEGFONTOSABB) ===
-    const manufacturerPrompt = `Keresd meg a "${gyarto} ${termekNev}" termék HIVATALOS gyártói leírását!
+    const manufacturerPrompt = `Keresd meg a "${gyarto} ${termekNev}" TERMÉKCSALÁD HIVATALOS gyártói leírását!
 
 KERESS EZEKEN AZ OLDALAKON (fontossági sorrendben):
 1. ${manufacturerSites} - A GYÁRTÓ HIVATALOS OLDALA (LEGFONTOSABB!)
 2. A gyártó PDF adatlapja és katalógusa
 
 MIT KERESS:
-- Hogyan írja le a GYÁRTÓ a saját termékét?
+- Hogyan írja le a GYÁRTÓ a termékcsaládot? (NE az egyes méreteket!)
 - Milyen előnyöket, USP-ket emel ki a gyártó?
 - Milyen célcsoportnak ajánlja?
 - Milyen technológiákat/funkciókat hangsúlyoz?
-${sizeContext}
 
-FONTOS: A gyártó saját szavait és marketingjét keresd, ne te találd ki!
+FONTOS:
+- A gyártó saját szavait és marketingjét keresd, ne te találd ki!
+- A TELJES termékcsaládra vonatkozó jellemzőket keresd, NE méretspecifikus adatokat!
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
@@ -131,7 +106,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     }
 
     // === LÉPÉS 2: Más forgalmazók USP-i ===
-    const competitorPrompt = `Keresd meg hogyan árulják MÁSOK a "${gyarto} ${termekNev}" terméket!
+    const competitorPrompt = `Keresd meg hogyan árulják MÁSOK a "${gyarto} ${termekNev}" TERMÉKCSALÁDOT!
 
 KERESS EZEKEN AZ OLDALAKON:
 1. Magyar webshopok: szelep.hu, szelloztetes.hu, ventilator.hu, praktiker.hu, obi.hu, bauhaus.hu
@@ -139,13 +114,14 @@ KERESS EZEKEN AZ OLDALAKON:
 3. Szakmai fórumok, vélemények
 
 MIT KERESS:
-- Milyen USP-ket/előnyöket használnak a forgalmazók?
+- Milyen USP-ket/előnyöket használnak a forgalmazók a TERMÉKCSALÁDRA?
 - Hogyan pozicionálják a terméket?
 - Mit emelnek ki a termékleírásokban?
 - Milyen vásárlói vélemények vannak?
-${sizeContext}
 
-FONTOS: A TÉNYLEGES forgalmazói szövegeket gyűjtsd, ne te találd ki!
+FONTOS:
+- A TÉNYLEGES forgalmazói szövegeket gyűjtsd, ne te találd ki!
+- NE méretspecifikus adatokat keress, hanem a termékcsaládra jellemzőket!
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
@@ -180,47 +156,51 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     }
 
     // === LÉPÉS 3: USP javaslatok összeállítása A TALÁLT ADATOK ALAPJÁN ===
-    const sizeUspContext = productSize
-      ? `\nMÉRET: ${productSize}mm - minden összehasonlítás csak erre a méretre vonatkozzon!`
-      : '';
+    const uspPrompt = `A "${gyarto} ${termekNev}" TERMÉKSORHOZ készíts USP javaslatokat AZ ALÁBBI FORRÁSOK ALAPJÁN.
 
-    const uspPrompt = `A "${gyarto} ${termekNev}" termékhez készíts USP javaslatokat AZ ALÁBBI KUTATÁS ALAPJÁN.
+=== PDF ADATLAP MŰSZAKI JELLEMZŐK (LEGFONTOSABB!) ===
+${extractedData ? JSON.stringify(extractedData, null, 2) : 'Nincs adatlap betöltve'}
 
-=== GYÁRTÓI INFORMÁCIÓK (LEGFONTOSABB FORRÁS) ===
+=== GYÁRTÓI MARKETING INFORMÁCIÓK ===
 ${JSON.stringify(manufacturerData, null, 2)}
 
 === MÁS FORGALMAZÓK USP-I ===
 ${JSON.stringify(competitorData, null, 2)}
 
-=== MŰSZAKI ADATOK ===
-${extractedData ? JSON.stringify(extractedData) : 'Nincs'}
-${sizeUspContext}
+⚠️ KRITIKUS SZABÁLYOK:
+1. SOHA NE EMLÍTS MÉRETET/ÁTMÉRŐT! A USP-k a TELJES TERMÉKCSALÁDRA vonatkoznak (minden méretre: 100mm, 150mm, 200mm stb.)
+2. HASZNÁLD A PDF KONKRÉT JELLEMZŐIT! Pl:
+   - "Függőlegesen vagy vízszintesen is felszerelhető" (ha a PDF-ben: "Vertical or horizontal installation")
+   - "Acél ház epoxi bevonattal belül és kívül" (ha: "Steel housing with epoxy finish")
+   - "EC motor golyóscsapággyal" (ha: "Ball bearing EC motor")
+   - "Folyamatos üzemre alkalmas" (ha: "Suitable for continuous running")
+   - "Fordulatszám szabályozható" (ha: "Speed controllable")
+   - "Max +60°C hőmérsékletig" (ha: "max temperature of +60°C")
+3. Minden USP-nél JELÖLD a forrást!
+4. PREFERENCIA SORREND: PDF adatok > Gyártói marketing > Forgalmazók > Saját következtetés
 
 FELADAT:
-1. Készíts 5-8 USP javaslatot A FENTI FORRÁSOK ALAPJÁN
-2. PRIORITÁS: Gyártói USP-k > Forgalmazói USP-k > Saját következtetés
-3. Minden USP-nél jelöld meg a FORRÁST (gyártó/forgalmazó neve)
-4. NE találj ki USP-ket - csak amit a kutatásban találtál!
-5. Ha a gyártó mond valamit, az a legmegbízhatóbb
+Készíts 5-8 KONKRÉT, SPECIFIKUS USP-t a PDF műszaki jellemzői alapján!
+NE írj általánosságokat ("kiváló minőség", "megbízható") - konkrét tulajdonságokat!
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
   "suggestions": [
     {
       "id": "UNIQUE_ID",
-      "title": "USP cím (max 60 karakter)",
-      "paragraph_1": "Első bekezdés - az előny kifejtése (2-3 mondat)",
-      "paragraph_2": "Második bekezdés - gyakorlati haszon (2-3 mondat)",
-      "source": "GYÁRTÓ/forgalmazó neve/következtetett",
+      "title": "USP cím (max 60 karakter) - NE tartalmazzon méretet!",
+      "paragraph_1": "Első bekezdés - a KONKRÉT technikai előny kifejtése (2-3 mondat)",
+      "paragraph_2": "Második bekezdés - gyakorlati haszon a felhasználó számára (2-3 mondat)",
+      "source": "${gyarto} PDF adatlap / ${gyarto} termékoldal / forgalmazó neve",
       "source_type": "manufacturer/seller/inferred",
       "confidence": "high/medium/low",
-      "original_claim": "Az eredeti állítás amit találtunk"
+      "original_claim": "Az eredeti angol/német szöveg a PDF-ből vagy weboldalról"
     }
   ],
   "sources_summary": {
-    "manufacturer_claims_used": ["felhasznált gyártói állítások"],
-    "seller_claims_used": ["felhasznált forgalmazói állítások"],
-    "inferred_claims": ["saját következtetések (ezek kevésbé megbízhatóak)"]
+    "pdf_features_used": ["PDF-ből használt konkrét jellemzők"],
+    "manufacturer_claims_used": ["felhasznált gyártói marketing állítások"],
+    "seller_claims_used": ["felhasznált forgalmazói állítások"]
   }
 }`;
 
@@ -247,8 +227,6 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
       ...result,
       manufacturer_data: manufacturerData,
       competitor_data: competitorData,
-      product_size_mm: productSize,
-      size_context: productSize ? `${productSize}mm méretkategória` : null
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
