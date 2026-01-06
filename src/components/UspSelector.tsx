@@ -22,8 +22,10 @@ interface UspSuggestion {
   paragraph_1: string;
   paragraph_2?: string;
   source: string;
+  source_type?: 'manufacturer' | 'seller' | 'inferred';
   confidence: 'high' | 'medium' | 'low';
   seo_keywords?: string[];
+  original_claim?: string;
 }
 
 interface CompetitorInsight {
@@ -497,14 +499,36 @@ export default function UspSelector() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-sm)' }}>
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 'var(--space-xs)' }}>{suggestion.title}</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                    <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+                      {/* Source type badge - most important */}
+                      <span
+                        className="badge"
+                        style={{
+                          fontSize: '0.65rem',
+                          background: suggestion.source_type === 'manufacturer'
+                            ? 'var(--color-success)'
+                            : suggestion.source_type === 'seller'
+                              ? 'var(--color-primary)'
+                              : 'var(--color-bg-tertiary)',
+                          color: suggestion.source_type === 'manufacturer' || suggestion.source_type === 'seller' ? 'white' : 'inherit'
+                        }}
+                      >
+                        {suggestion.source_type === 'manufacturer' ? '🏭 Gyártó' :
+                         suggestion.source_type === 'seller' ? '🛒 Forgalmazó' :
+                         '💡 Következtetett'}
+                      </span>
                       <span className={`badge ${suggestion.confidence === 'high' ? 'badge-success' : suggestion.confidence === 'medium' ? 'badge-warning' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
-                        {suggestion.confidence === 'high' ? 'Magas' : suggestion.confidence === 'medium' ? 'Közepes' : 'Alacsony'} megbízhatóság
+                        {suggestion.confidence === 'high' ? 'Magas' : suggestion.confidence === 'medium' ? 'Közepes' : 'Alacsony'}
                       </span>
                       <span className="badge" style={{ fontSize: '0.65rem', background: 'var(--color-bg-tertiary)' }}>
                         {suggestion.source}
                       </span>
                     </div>
+                    {suggestion.original_claim && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)', fontStyle: 'italic' }}>
+                        Eredeti: "{suggestion.original_claim}"
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
                     <button

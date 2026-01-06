@@ -30,20 +30,16 @@ function extractSizeFromProduct(termekNev: string, extractedData?: Record<string
   return null;
 }
 
-interface UspSuggestion {
-  id: string;
-  title: string;
-  paragraph_1: string;
-  paragraph_2?: string;
-  source: string;
-  confidence: 'high' | 'medium' | 'low';
-}
-
-interface CompetitorInfo {
-  source: string;
-  url?: string;
-  highlights: string[];
-}
+// Manufacturer domains for prioritization
+const MANUFACTURER_DOMAINS: Record<string, string[]> = {
+  'Elicent': ['elicent.it', 'elicent.com'],
+  'Maico': ['maico-ventilatoren.com', 'maico.de'],
+  'Blauberg': ['blaubergvento.de', 'blauberg.de', 'blaubergvento.com'],
+  'Vents': ['ventilation-system.com', 'vents.ua', 'vents.eu'],
+  'Awenta': ['awenta.pl', 'awenta.com'],
+  'Helios': ['heliosventilatoren.de', 'helios.de'],
+  'Vortice': ['vortice.com', 'vortice.it'],
+};
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const runtime = (locals as any).runtime;
@@ -76,100 +72,156 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Extract product size for fair comparison
     const productSize = extractSizeFromProduct(termekNev, extractedData);
     const sizeContext = productSize
-      ? `\n\nFONTOS - MÉRET SZERINTI ÖSSZEHASONLÍTÁS:
-Ez egy ${productSize}mm csőátmérőjű ventilátor.
-Csak AZONOS vagy hasonló méretű (${productSize}mm ±25mm) ventilátorokat hasonlíts össze!
-Ne hasonlíts 100mm-es ventilátort 400mm-esekkel - az nem releváns.
-A légszállítás, zajszint és teljesítmény értékeket CSAK az adott méretkategórián belül értékeld.`
+      ? `\nEz egy ${productSize}mm csőátmérőjű ventilátor. Csak azonos méretű (${productSize}mm) termékeket hasonlíts!`
       : '';
 
-    // Első lépés: versenytárs információk gyűjtése web search-el
-    const searchPrompt = `Keress információkat erről a ventilátorról: "${gyarto} ${termekNev}" (kategória: ${kategoria})${sizeContext}
+    // Get manufacturer domains
+    const manufacturerDomains = MANUFACTURER_DOMAINS[gyarto] || [];
+    const manufacturerSites = manufacturerDomains.length > 0
+      ? manufacturerDomains.join(', ')
+      : `${gyarto.toLowerCase()}.com, ${gyarto.toLowerCase()}.it, ${gyarto.toLowerCase()}.de`;
 
-Nézd meg:
-1. A gyártó hivatalos oldalát (${gyarto.toLowerCase()}.com, ${gyarto.toLowerCase()}.it, ${gyarto.toLowerCase()}.de stb.)
-2. Magyar webshopokat (ventilatorhaz.hu versenytársai: szelep.hu, szelloztetes.hu, ventilator.hu, praktiker.hu, obi.hu)
-3. Nemzetközi értékeléseket és teszteket
-4. Termékcsalád jellemzőit
+    // === LÉPÉS 1: Gyártói információk (LEGFONTOSABB) ===
+    const manufacturerPrompt = `Keresd meg a "${gyarto} ${termekNev}" termék HIVATALOS gyártói leírását!
+
+KERESS EZEKEN AZ OLDALAKON (fontossági sorrendben):
+1. ${manufacturerSites} - A GYÁRTÓ HIVATALOS OLDALA (LEGFONTOSABB!)
+2. A gyártó PDF adatlapja és katalógusa
+
+MIT KERESS:
+- Hogyan írja le a GYÁRTÓ a saját termékét?
+- Milyen előnyöket, USP-ket emel ki a gyártó?
+- Milyen célcsoportnak ajánlja?
+- Milyen technológiákat/funkciókat hangsúlyoz?
+${sizeContext}
+
+FONTOS: A gyártó saját szavait és marketingjét keresd, ne te találd ki!
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
-  "manufacturer_info": {
-    "highlights": ["gyártó által kiemelt tulajdonságok"],
-    "unique_features": ["egyedi jellemzők amit a gyártó hangsúlyoz"],
-    "target_audience": "célcsoport"
-  },
-  "competitor_descriptions": [
+  "manufacturer_usps": [
     {
-      "source": "webshop/oldal neve",
-      "highlights": ["amit kiemelnek erről a termékről"],
-      "selling_points": ["értékesítési érvek"]
+      "usp_text": "A gyártó által használt pontos USP/előny szöveg",
+      "context": "Hol találtad (termékoldal/katalógus/adatlap)",
+      "original_language": "eredeti nyelv ha nem magyar"
     }
   ],
-  "common_usp_themes": ["gyakori értékesítési érvek a kategóriában"],
-  "differentiators": ["ami megkülönbözteti ezt a terméket a versenytársaktól"]
+  "manufacturer_highlights": ["gyártó által kiemelt fő tulajdonságok"],
+  "target_audience": "A gyártó szerint kinek ajánlott",
+  "key_technologies": ["említett technológiák/funkciók"],
+  "source_urls": ["url ahol találtad"]
 }`;
 
-    const searchResponse = await client.messages.create({
+    const manufacturerResponse = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
-      messages: [{ role: 'user', content: searchPrompt }],
+      messages: [{ role: 'user', content: manufacturerPrompt }],
     });
 
-    const searchText = searchResponse.content[0].type === 'text' ? searchResponse.content[0].text : '';
+    const manufacturerText = manufacturerResponse.content[0].type === 'text' ? manufacturerResponse.content[0].text : '';
+
+    let manufacturerData: any = {};
+    try {
+      const jsonMatch = manufacturerText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        manufacturerData = JSON.parse(jsonMatch[0]);
+      }
+    } catch {
+      manufacturerData = { raw: manufacturerText };
+    }
+
+    // === LÉPÉS 2: Más forgalmazók USP-i ===
+    const competitorPrompt = `Keresd meg hogyan árulják MÁSOK a "${gyarto} ${termekNev}" terméket!
+
+KERESS EZEKEN AZ OLDALAKON:
+1. Magyar webshopok: szelep.hu, szelloztetes.hu, ventilator.hu, praktiker.hu, obi.hu, bauhaus.hu
+2. Nemzetközi webshopok: amazon.de, ebay.de, conrad.de
+3. Szakmai fórumok, vélemények
+
+MIT KERESS:
+- Milyen USP-ket/előnyöket használnak a forgalmazók?
+- Hogyan pozicionálják a terméket?
+- Mit emelnek ki a termékleírásokban?
+- Milyen vásárlói vélemények vannak?
+${sizeContext}
+
+FONTOS: A TÉNYLEGES forgalmazói szövegeket gyűjtsd, ne te találd ki!
+
+VÁLASZOLJ JSON FORMÁTUMBAN:
+{
+  "seller_usps": [
+    {
+      "source": "webshop/oldal neve",
+      "usp_text": "Az általuk használt USP/leírás",
+      "selling_angle": "milyen szemszögből adják el"
+    }
+  ],
+  "common_selling_points": ["több helyen is előforduló érvek"],
+  "unique_angles": ["egyedi megközelítések amit találtál"],
+  "customer_feedback": ["vásárlói vélemények összefoglalása"]
+}`;
+
+    const competitorResponse = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: competitorPrompt }],
+    });
+
+    const competitorText = competitorResponse.content[0].type === 'text' ? competitorResponse.content[0].text : '';
 
     let competitorData: any = {};
     try {
-      const jsonMatch = searchText.match(/\{[\s\S]*\}/);
+      const jsonMatch = competitorText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         competitorData = JSON.parse(jsonMatch[0]);
       }
     } catch {
-      competitorData = { raw: searchText };
+      competitorData = { raw: competitorText };
     }
 
-    // Második lépés: USP javaslatok generálása
+    // === LÉPÉS 3: USP javaslatok összeállítása A TALÁLT ADATOK ALAPJÁN ===
     const sizeUspContext = productSize
-      ? `\n\nMÉRET KONTEXTUS: Ez egy ${productSize}mm-es ventilátor.
-Az USP-ket és összehasonlításokat CSAK a ${productSize}mm méretkategóriára vonatkoztasd!
-Pl. "kategóriájában kiemelkedő légszállítás" = a ${productSize}mm-es ventilátorok között, NEM az összes méret között.
-Ha légszállítást, zajszintet vagy teljesítményt említesz, mindig a ${productSize}mm-es kategóriára vonatkozzon.`
+      ? `\nMÉRET: ${productSize}mm - minden összehasonlítás csak erre a méretre vonatkozzon!`
       : '';
 
-    const uspPrompt = `A következő ventilátor termékhez generálj USP (Unique Selling Point) javaslatokat:
+    const uspPrompt = `A "${gyarto} ${termekNev}" termékhez készíts USP javaslatokat AZ ALÁBBI KUTATÁS ALAPJÁN.
 
-Termék: ${gyarto} ${termekNev}
-Kategória: ${kategoria}
-${extractedData ? `Műszaki adatok: ${JSON.stringify(extractedData)}` : ''}${sizeUspContext}
+=== GYÁRTÓI INFORMÁCIÓK (LEGFONTOSABB FORRÁS) ===
+${JSON.stringify(manufacturerData, null, 2)}
 
-Versenytárs kutatás eredménye:
+=== MÁS FORGALMAZÓK USP-I ===
 ${JSON.stringify(competitorData, null, 2)}
 
-Generálj 5-8 USP javaslatot, amelyek:
-1. Kiemelik a termék erősségeit
-2. Különböznek a meglévő USP könyvtártól (legyenek egyediek)
-3. SEO szempontból optimalizáltak (de nem keyword stuffing)
-4. Vásárlói előnyökre fókuszálnak (nem csak funkciókra)
+=== MŰSZAKI ADATOK ===
+${extractedData ? JSON.stringify(extractedData) : 'Nincs'}
+${sizeUspContext}
+
+FELADAT:
+1. Készíts 5-8 USP javaslatot A FENTI FORRÁSOK ALAPJÁN
+2. PRIORITÁS: Gyártói USP-k > Forgalmazói USP-k > Saját következtetés
+3. Minden USP-nél jelöld meg a FORRÁST (gyártó/forgalmazó neve)
+4. NE találj ki USP-ket - csak amit a kutatásban találtál!
+5. Ha a gyártó mond valamit, az a legmegbízhatóbb
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
   "suggestions": [
     {
       "id": "UNIQUE_ID",
-      "title": "Figyelemfelkeltő cím - max 60 karakter",
-      "paragraph_1": "Első bekezdés - a fő előny részletes kifejtése, 2-3 mondat",
-      "paragraph_2": "Második bekezdés - gyakorlati haszon vagy technikai háttér, 2-3 mondat",
-      "source": "Honnan származik ez az info (gyártó/versenytárs/következtetett)",
+      "title": "USP cím (max 60 karakter)",
+      "paragraph_1": "Első bekezdés - az előny kifejtése (2-3 mondat)",
+      "paragraph_2": "Második bekezdés - gyakorlati haszon (2-3 mondat)",
+      "source": "GYÁRTÓ/forgalmazó neve/következtetett",
+      "source_type": "manufacturer/seller/inferred",
       "confidence": "high/medium/low",
-      "seo_keywords": ["kulcsszavak amiket tartalmaz"]
+      "original_claim": "Az eredeti állítás amit találtunk"
     }
   ],
-  "competitor_insights": [
-    {
-      "source": "forrás neve",
-      "highlights": ["fontos információk"]
-    }
-  ]
+  "sources_summary": {
+    "manufacturer_claims_used": ["felhasznált gyártói állítások"],
+    "seller_claims_used": ["felhasznált forgalmazói állítások"],
+    "inferred_claims": ["saját következtetések (ezek kevésbé megbízhatóak)"]
+  }
 }`;
 
     const uspResponse = await client.messages.create({
@@ -180,7 +232,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
 
     const uspText = uspResponse.content[0].type === 'text' ? uspResponse.content[0].text : '';
 
-    let result: any = { suggestions: [], competitor_insights: [] };
+    let result: any = { suggestions: [], sources_summary: {} };
     try {
       const jsonMatch = uspText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -193,6 +245,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     return new Response(JSON.stringify({
       success: true,
       ...result,
+      manufacturer_data: manufacturerData,
       competitor_data: competitorData,
       product_size_mm: productSize,
       size_context: productSize ? `${productSize}mm méretkategória` : null
