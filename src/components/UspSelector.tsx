@@ -26,6 +26,15 @@ interface UspSuggestion {
   confidence: 'high' | 'medium' | 'low';
   seo_keywords?: string[];
   original_claim?: string;
+  image_suggestion?: 'product' | 'installation' | 'technical' | 'lifestyle';
+  selected_image?: string;
+}
+
+interface ProductImage {
+  url: string;
+  title: string;
+  source: string;
+  type: 'product' | 'installation' | 'technical' | 'lifestyle';
 }
 
 interface CompetitorInsight {
@@ -58,6 +67,11 @@ export default function UspSelector() {
   const [suggestions, setSuggestions] = useState<UspSuggestion[]>([]);
   const [competitorInsights, setCompetitorInsights] = useState<CompetitorInsight[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Képek
+  const [productImages, setProductImages] = useState<ProductImage[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState<string | null>(null); // USP id for which we're picking an image
 
   // SEO deduplikáció state-ek
   const [duplicateModal, setDuplicateModal] = useState<{
@@ -326,29 +340,44 @@ export default function UspSelector() {
     }
 
     setIsAnalyzing(true);
+    setIsLoadingImages(true);
 
     try {
       const extractedObj: Record<string, unknown> = {};
       extractedData.forEach(d => { extractedObj[d.field] = d.value; });
 
-      const response = await fetch('/api/analyze-competitors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          termekNev,
-          gyarto,
-          kategoria,
-          extractedData: extractedObj
+      // Párhuzamosan indítjuk az USP elemzést és a képkeresést
+      const [uspResponse, imageResponse] = await Promise.all([
+        fetch('/api/analyze-competitors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            termekNev,
+            gyarto,
+            kategoria,
+            extractedData: extractedObj
+          }),
         }),
-      });
+        fetch('/api/search-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ termekNev, gyarto }),
+        }),
+      ]);
 
-      const result = await response.json();
+      const [uspResult, imageResult] = await Promise.all([
+        uspResponse.json(),
+        imageResponse.json(),
+      ]);
 
-      if (result.suggestions) {
-        setSuggestions(result.suggestions);
+      if (uspResult.suggestions) {
+        setSuggestions(uspResult.suggestions);
       }
-      if (result.competitor_insights) {
-        setCompetitorInsights(result.competitor_insights);
+      if (uspResult.competitor_insights) {
+        setCompetitorInsights(uspResult.competitor_insights);
+      }
+      if (imageResult.images) {
+        setProductImages(imageResult.images);
       }
       setShowSuggestions(true);
     } catch (err) {
@@ -356,7 +385,16 @@ export default function UspSelector() {
       alert('Hiba történt az elemzés során');
     } finally {
       setIsAnalyzing(false);
+      setIsLoadingImages(false);
     }
+  };
+
+  // Kép kiválasztása egy USP-hez
+  const selectImageForSuggestion = (suggestionId: string, imageUrl: string) => {
+    setSuggestions(prev => prev.map(s =>
+      s.id === suggestionId ? { ...s, selected_image: imageUrl } : s
+    ));
+    setShowImagePicker(null);
   };
 
   // USP javaslat hozzáadása a kiválasztottakhoz
@@ -366,12 +404,19 @@ export default function UspSelector() {
       return;
     }
 
+    // Ha nincs kiválasztott kép, próbáljunk megfelelő típusút találni
+    let imageUrl = suggestion.selected_image;
+    if (!imageUrl && suggestion.image_suggestion && productImages.length > 0) {
+      const matchingImage = productImages.find(img => img.type === suggestion.image_suggestion);
+      imageUrl = matchingImage?.url || productImages[0]?.url;
+    }
+
     const newUsp: UspBlock = {
       id: `SUGGESTED_${suggestion.id}`,
       title: suggestion.title,
       paragraph_1: suggestion.paragraph_1,
       paragraph_2: suggestion.paragraph_2,
-      image_url: '/images/usps/default.jpg',
+      image_url: imageUrl || '/images/usps/default.jpg',
       image_alt: suggestion.title,
       selected: true,
       order: selectedUsps.length,
@@ -474,6 +519,47 @@ export default function UspSelector() {
             </button>
           </div>
 
+          {/* Képgaléria */}
+          {productImages.length > 0 && (
+            <div style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-sm)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+              <strong style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: 'var(--space-xs)' }}>
+                📷 Talált képek ({productImages.length}):
+              </strong>
+              <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+                {productImages.slice(0, 8).map((img, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img
+                      src={img.url}
+                      alt={img.title}
+                      style={{
+                        width: 60,
+                        height: 60,
+                        objectFit: 'cover',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '2px solid var(--color-border)',
+                      }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: 2,
+                        right: 2,
+                        fontSize: '0.5rem',
+                        background: 'rgba(0,0,0,0.7)',
+                        color: 'white',
+                        padding: '1px 3px',
+                        borderRadius: 2,
+                      }}
+                    >
+                      {img.type === 'product' ? '📦' : img.type === 'installation' ? '🔧' : img.type === 'technical' ? '📐' : '🏠'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {competitorInsights.length > 0 && (
             <div style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-sm)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
               <strong style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Versenytárs infók:</strong>
@@ -496,65 +582,181 @@ export default function UspSelector() {
                   background: 'var(--color-bg-primary)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-sm)' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, marginBottom: 'var(--space-xs)' }}>{suggestion.title}</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
-                      {/* Source type badge - most important */}
-                      <span
-                        className="badge"
+                <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                  {/* Kép szekció */}
+                  <div style={{ flexShrink: 0 }}>
+                    {suggestion.selected_image ? (
+                      <div style={{ position: 'relative' }}>
+                        <img
+                          src={suggestion.selected_image}
+                          alt={suggestion.title}
+                          style={{
+                            width: 80,
+                            height: 80,
+                            objectFit: 'cover',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '2px solid var(--color-success)',
+                          }}
+                        />
+                        <button
+                          onClick={() => setShowImagePicker(suggestion.id)}
+                          style={{
+                            position: 'absolute',
+                            bottom: -4,
+                            right: -4,
+                            background: 'var(--color-primary)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: 20,
+                            height: 20,
+                            fontSize: '0.6rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✎
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowImagePicker(suggestion.id)}
                         style={{
+                          width: 80,
+                          height: 80,
+                          border: '2px dashed var(--color-border)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--color-bg-secondary)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           fontSize: '0.65rem',
-                          background: suggestion.source_type === 'manufacturer'
-                            ? 'var(--color-success)'
-                            : suggestion.source_type === 'seller'
-                              ? 'var(--color-primary)'
-                              : 'var(--color-bg-tertiary)',
-                          color: suggestion.source_type === 'manufacturer' || suggestion.source_type === 'seller' ? 'white' : 'inherit'
+                          color: 'var(--color-text-muted)',
                         }}
                       >
-                        {suggestion.source_type === 'manufacturer' ? '🏭 Gyártó' :
-                         suggestion.source_type === 'seller' ? '🛒 Forgalmazó' :
-                         '💡 Következtetett'}
-                      </span>
-                      <span className={`badge ${suggestion.confidence === 'high' ? 'badge-success' : suggestion.confidence === 'medium' ? 'badge-warning' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
-                        {suggestion.confidence === 'high' ? 'Magas' : suggestion.confidence === 'medium' ? 'Közepes' : 'Alacsony'}
-                      </span>
-                      <span className="badge" style={{ fontSize: '0.65rem', background: 'var(--color-bg-tertiary)' }}>
-                        {suggestion.source}
-                      </span>
-                    </div>
-                    {suggestion.original_claim && (
-                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)', fontStyle: 'italic' }}>
-                        Eredeti: "{suggestion.original_claim}"
+                        📷
+                        <span>Kép</span>
+                      </button>
+                    )}
+
+                    {/* Kép választó */}
+                    {showImagePicker === suggestion.id && productImages.length > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          zIndex: 100,
+                          background: 'var(--color-bg-primary)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: 'var(--space-sm)',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          marginTop: 'var(--space-xs)',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.7rem', marginBottom: 'var(--space-xs)', fontWeight: 600 }}>
+                          Válassz képet:
+                        </div>
+                        <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap', maxWidth: 200 }}>
+                          {productImages.map((img, i) => (
+                            <img
+                              key={i}
+                              src={img.url}
+                              alt={img.title}
+                              style={{
+                                width: 40,
+                                height: 40,
+                                objectFit: 'cover',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                border: '2px solid transparent',
+                              }}
+                              onClick={() => selectImageForSuggestion(suggestion.id, img.url)}
+                              onMouseOver={(e) => { (e.target as HTMLImageElement).style.borderColor = 'var(--color-primary)'; }}
+                              onMouseOut={(e) => { (e.target as HTMLImageElement).style.borderColor = 'transparent'; }}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => setShowImagePicker(null)}
+                          style={{
+                            marginTop: 'var(--space-xs)',
+                            fontSize: '0.65rem',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-text-muted)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Bezárás
+                        </button>
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-                    <button
-                      className="btn btn-primary"
-                      style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
-                      onClick={() => addSuggestionToSelected(suggestion)}
-                    >
-                      + Hozzáadás
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
-                      onClick={() => saveSuggestionToLibrary(suggestion)}
-                    >
-                      💾 Könyvtárba
-                    </button>
+
+                  {/* USP tartalom */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-sm)' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 'var(--space-xs)' }}>{suggestion.title}</div>
+                        <div style={{ display: 'flex', gap: 'var(--space-xs)', flexWrap: 'wrap' }}>
+                          <span
+                            className="badge"
+                            style={{
+                              fontSize: '0.65rem',
+                              background: suggestion.source_type === 'manufacturer'
+                                ? 'var(--color-success)'
+                                : suggestion.source_type === 'seller'
+                                  ? 'var(--color-primary)'
+                                  : 'var(--color-bg-tertiary)',
+                              color: suggestion.source_type === 'manufacturer' || suggestion.source_type === 'seller' ? 'white' : 'inherit'
+                            }}
+                          >
+                            {suggestion.source_type === 'manufacturer' ? '🏭 Gyártó' :
+                             suggestion.source_type === 'seller' ? '🛒 Forgalmazó' :
+                             '💡 Következtetett'}
+                          </span>
+                          <span className={`badge ${suggestion.confidence === 'high' ? 'badge-success' : suggestion.confidence === 'medium' ? 'badge-warning' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
+                            {suggestion.confidence === 'high' ? 'Magas' : suggestion.confidence === 'medium' ? 'Közepes' : 'Alacsony'}
+                          </span>
+                          <span className="badge" style={{ fontSize: '0.65rem', background: 'var(--color-bg-tertiary)' }}>
+                            {suggestion.source}
+                          </span>
+                        </div>
+                        {suggestion.original_claim && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-xs)', fontStyle: 'italic' }}>
+                            Eredeti: "{suggestion.original_claim}"
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                        <button
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
+                          onClick={() => addSuggestionToSelected(suggestion)}
+                        >
+                          + Hozzáadás
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: 'var(--space-xs) var(--space-sm)' }}
+                          onClick={() => saveSuggestionToLibrary(suggestion)}
+                        >
+                          💾
+                        </button>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                      {suggestion.paragraph_1}
+                    </p>
+                    {suggestion.paragraph_2 && (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0, marginTop: 'var(--space-xs)' }}>
+                        {suggestion.paragraph_2}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0 }}>
-                  {suggestion.paragraph_1}
-                </p>
-                {suggestion.paragraph_2 && (
-                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0, marginTop: 'var(--space-xs)' }}>
-                    {suggestion.paragraph_2}
-                  </p>
-                )}
               </div>
             ))}
           </div>

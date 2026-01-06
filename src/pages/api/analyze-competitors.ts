@@ -155,52 +155,59 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
       competitorData = { raw: competitorText };
     }
 
-    // === LÉPÉS 3: USP javaslatok összeállítása A TALÁLT ADATOK ALAPJÁN ===
-    const uspPrompt = `A "${gyarto} ${termekNev}" TERMÉKSORHOZ készíts USP javaslatokat AZ ALÁBBI FORRÁSOK ALAPJÁN.
+    // === LÉPÉS 3: USP javaslatok összeállítása A GYÁRTÓI ADATOK ALAPJÁN ===
+    const uspPrompt = `A "${gyarto} ${termekNev}" TERMÉKSORHOZ készíts USP javaslatokat.
 
-=== PDF ADATLAP MŰSZAKI JELLEMZŐK (LEGFONTOSABB!) ===
-${extractedData ? JSON.stringify(extractedData, null, 2) : 'Nincs adatlap betöltve'}
+⚠️ LEGFONTOSABB: HASZNÁLD A GYÁRTÓ SAJÁT SZAVAIT!
+Az alábbi gyártói információkat kaptuk - ezekből készíts USP-ket:
 
-=== GYÁRTÓI MARKETING INFORMÁCIÓK ===
+=== GYÁRTÓI HIVATALOS ÁLLÍTÁSOK (EZEKET HASZNÁLD!) ===
 ${JSON.stringify(manufacturerData, null, 2)}
 
-=== MÁS FORGALMAZÓK USP-I ===
+=== PDF ADATLAP JELLEMZŐK ===
+${extractedData ? JSON.stringify(extractedData, null, 2) : 'Nincs'}
+
+=== FORGALMAZÓI LEÍRÁSOK (másodlagos forrás) ===
 ${JSON.stringify(competitorData, null, 2)}
 
-⚠️ KRITIKUS SZABÁLYOK:
-1. SOHA NE EMLÍTS MÉRETET/ÁTMÉRŐT! A USP-k a TELJES TERMÉKCSALÁDRA vonatkoznak (minden méretre: 100mm, 150mm, 200mm stb.)
-2. HASZNÁLD A PDF KONKRÉT JELLEMZŐIT! Pl:
-   - "Függőlegesen vagy vízszintesen is felszerelhető" (ha a PDF-ben: "Vertical or horizontal installation")
-   - "Acél ház epoxi bevonattal belül és kívül" (ha: "Steel housing with epoxy finish")
-   - "EC motor golyóscsapággyal" (ha: "Ball bearing EC motor")
-   - "Folyamatos üzemre alkalmas" (ha: "Suitable for continuous running")
-   - "Fordulatszám szabályozható" (ha: "Speed controllable")
-   - "Max +60°C hőmérsékletig" (ha: "max temperature of +60°C")
-3. Minden USP-nél JELÖLD a forrást!
-4. PREFERENCIA SORREND: PDF adatok > Gyártói marketing > Forgalmazók > Saját következtetés
+📋 FELADAT:
+1. Vedd a gyártó által TÉNYLEGESEN használt USP-ket/állításokat
+2. Fordítsd le magyarra és fogalmazd át értékesítési szöveggé
+3. NE találj ki új USP-ket - csak amit a gyártó mond!
+4. SOHA ne említs méretet/átmérőt!
 
-FELADAT:
-Készíts 5-8 KONKRÉT, SPECIFIKUS USP-t a PDF műszaki jellemzői alapján!
-NE írj általánosságokat ("kiváló minőség", "megbízható") - konkrét tulajdonságokat!
+🎯 PÉLDÁK HELYES USP-KRE (a gyártói állítások alapján):
+
+Ha a gyártó azt mondja: "Vertical or horizontal installation"
+→ USP cím: "Rugalmas beépítés: függőlegesen és vízszintesen"
+→ Paragraph: "A ventilátor egyaránt felszerelhető függőleges és vízszintes pozícióban..."
+
+Ha a gyártó azt mondja: "Ball bearing EC motor"
+→ USP cím: "Tartós EC motor golyóscsapággyal"
+→ Paragraph: "Az EC technológiás motor golyóscsapágy ágyazással hosszú élettartamot..."
+
+Ha a gyártó azt mondja: "Suitable for continuous running"
+→ USP cím: "Folyamatos üzemre tervezve"
+→ Paragraph: "24 órás folyamatos működésre alkalmas, megbízható háztartási és ipari..."
 
 VÁLASZOLJ JSON FORMÁTUMBAN:
 {
   "suggestions": [
     {
-      "id": "UNIQUE_ID",
-      "title": "USP cím (max 60 karakter) - NE tartalmazzon méretet!",
-      "paragraph_1": "Első bekezdés - a KONKRÉT technikai előny kifejtése (2-3 mondat)",
-      "paragraph_2": "Második bekezdés - gyakorlati haszon a felhasználó számára (2-3 mondat)",
-      "source": "${gyarto} PDF adatlap / ${gyarto} termékoldal / forgalmazó neve",
-      "source_type": "manufacturer/seller/inferred",
-      "confidence": "high/medium/low",
-      "original_claim": "Az eredeti angol/német szöveg a PDF-ből vagy weboldalról"
+      "id": "USP_1",
+      "title": "Magyar USP cím (max 50 karakter)",
+      "paragraph_1": "A technikai előny kifejtése (2-3 mondat). Hivatkozz a konkrét gyártói jellemzőre.",
+      "paragraph_2": "Gyakorlati haszon a vásárló számára (2-3 mondat).",
+      "source": "${gyarto}",
+      "source_type": "manufacturer",
+      "confidence": "high",
+      "original_claim": "A gyártó eredeti angol/olasz/német szövege",
+      "image_suggestion": "product/installation/technical/lifestyle - milyen típusú kép illene hozzá"
     }
   ],
   "sources_summary": {
-    "pdf_features_used": ["PDF-ből használt konkrét jellemzők"],
-    "manufacturer_claims_used": ["felhasznált gyártói marketing állítások"],
-    "seller_claims_used": ["felhasznált forgalmazói állítások"]
+    "manufacturer_claims_used": ["felhasznált gyártói állítások eredeti nyelven"],
+    "pdf_features_used": ["PDF-ből használt jellemzők"]
   }
 }`;
 
