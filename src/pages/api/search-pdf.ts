@@ -37,25 +37,40 @@ interface GeminiResponse {
   }>;
   error?: {
     message: string;
+    code?: number;
   };
 }
 
 // Gyártói URL pattern-ek - fallback ha nincs API kulcs
 const MANUFACTURER_PATTERNS: Record<string, {
   baseUrl: string;
+  domain: string;
   pdfPath: (productName: string) => string[];
   searchUrl: string;
 }> = {
   'Elicent': {
     baseUrl: 'https://www.elicent.it',
-    pdfPath: (name) => [
-      `/download/schede-tecniche/${name.toLowerCase().replace(/\s+/g, '-')}.pdf`,
-      `/assets/files/${name.toLowerCase()}.pdf`,
-    ],
+    domain: 'elicent.it',
+    pdfPath: (name) => {
+      // Elicent uses date-based naming: AXC-16-5-18.pdf, ELIX-100-xxx.pdf, etc.
+      const cleanName = name.toUpperCase().replace(/\s+/g, '-');
+      return [
+        // Try common date patterns
+        `/content/uploads/2018/04/${cleanName}-16-5-18.pdf`,
+        `/content/uploads/2019/${cleanName}.pdf`,
+        `/content/uploads/2020/${cleanName}.pdf`,
+        `/content/uploads/2021/${cleanName}.pdf`,
+        `/content/uploads/2022/${cleanName}.pdf`,
+        `/content/uploads/2023/${cleanName}.pdf`,
+        // Generic patterns
+        `/download/schede-tecniche/${name.toLowerCase().replace(/\s+/g, '-')}.pdf`,
+      ];
+    },
     searchUrl: 'https://www.elicent.it/en/products/',
   },
   'Maico': {
     baseUrl: 'https://www.maico-ventilatoren.com',
+    domain: 'maico-ventilatoren.com',
     pdfPath: (name) => [
       `/media/pdf/${name.toLowerCase()}.pdf`,
     ],
@@ -63,6 +78,7 @@ const MANUFACTURER_PATTERNS: Record<string, {
   },
   'Blauberg': {
     baseUrl: 'https://blaubergvento.de',
+    domain: 'blaubergvento.de',
     pdfPath: (name) => [
       `/upload/files/${name.toLowerCase().replace(/\s+/g, '_')}.pdf`,
     ],
@@ -70,6 +86,7 @@ const MANUFACTURER_PATTERNS: Record<string, {
   },
   'Vents': {
     baseUrl: 'https://ventilation-system.com',
+    domain: 'ventilation-system.com',
     pdfPath: (name) => [
       `/upload/medialibrary/${name.toUpperCase()}.pdf`,
       `/products/${name.toLowerCase()}/datasheet.pdf`,
@@ -78,6 +95,7 @@ const MANUFACTURER_PATTERNS: Record<string, {
   },
   'Awenta': {
     baseUrl: 'https://www.awenta.pl',
+    domain: 'awenta.pl',
     pdfPath: (name) => [
       `/files/products/${name.toLowerCase()}.pdf`,
     ],
@@ -85,6 +103,7 @@ const MANUFACTURER_PATTERNS: Record<string, {
   },
   'Helios': {
     baseUrl: 'https://www.heliosventilatoren.de',
+    domain: 'heliosventilatoren.de',
     pdfPath: (name) => [
       `/fileadmin/documents/datenblaetter/${name}.pdf`,
     ],
@@ -92,6 +111,7 @@ const MANUFACTURER_PATTERNS: Record<string, {
   },
   'Vortice': {
     baseUrl: 'https://www.vortice.com',
+    domain: 'vortice.com',
     pdfPath: (name) => [
       `/media/products/${name.toLowerCase()}.pdf`,
     ],
@@ -108,31 +128,9 @@ function getGeminiApiKey(locals: unknown): string | undefined {
 }
 
 /**
- * Search using Gemini API with Google Search Grounding
- * Prioritizes manufacturer website, then falls back to general search
+ * Call Gemini API with search grounding
  */
-async function geminiSearch(query: string, gyarto: string, apiKey: string): Promise<PdfResult[]> {
-  // Get manufacturer domain if known
-  const manufacturerPattern = MANUFACTURER_PATTERNS[gyarto];
-  const manufacturerDomain = manufacturerPattern?.baseUrl.replace('https://', '').replace('http://', '') || '';
-
-  const searchPrompt = manufacturerDomain
-    ? `Find PDF datasheet for "${query}" ONLY from the manufacturer website: ${manufacturerDomain}
-
-Search specifically on site:${manufacturerDomain} for:
-- Official product datasheet PDF
-- Technical specifications PDF
-- Product documentation PDF
-
-IMPORTANT: Only return URLs from ${manufacturerDomain}.
-Return ONLY the PDF URLs you find, one per line. No explanations.`
-    : `Find PDF datasheet download links for this ventilator/fan product: "${query}"
-
-Search for official manufacturer PDF datasheets, technical specifications, and product documentation.
-Focus on direct .pdf file links from the manufacturer's website.
-
-Return ONLY the URLs you find, one per line. No explanations needed.`;
-
+async function callGeminiWithSearch(prompt: string, apiKey: string): Promise<GeminiResponse> {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
@@ -142,66 +140,170 @@ Return ONLY the URLs you find, one per line. No explanations needed.`;
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{
-            text: searchPrompt
-          }]
+          parts: [{ text: prompt }]
         }],
         tools: [{
           googleSearch: {}
         }],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 2048,
         }
       }),
     }
   );
 
-  const data: GeminiResponse = await response.json();
+  return response.json();
+}
 
-  if (data.error) {
-    throw new Error(data.error.message);
-  }
-
+/**
+ * Extract PDF results from Gemini response
+ */
+function extractResultsFromGemini(data: GeminiResponse, preferredDomain?: string): PdfResult[] {
   const results: PdfResult[] = [];
   const seenUrls = new Set<string>();
 
-  // Extract URLs from grounding metadata (most reliable)
+  // Extract URLs from grounding metadata
   const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks;
   if (groundingChunks) {
     for (const chunk of groundingChunks) {
-      if (chunk.web?.uri && !seenUrls.has(chunk.web.uri)) {
-        seenUrls.add(chunk.web.uri);
-        results.push({
-          url: chunk.web.uri,
-          title: chunk.web.title || 'PDF adatlap',
-          source: new URL(chunk.web.uri).hostname,
-        });
+      const uri = chunk.web?.uri;
+      if (uri && !seenUrls.has(uri)) {
+        // Check if it's a PDF or datasheet related
+        const lowerUri = uri.toLowerCase();
+        const isPdfRelated = lowerUri.includes('.pdf') ||
+                           lowerUri.includes('datasheet') ||
+                           lowerUri.includes('download') ||
+                           lowerUri.includes('technical') ||
+                           lowerUri.includes('specification') ||
+                           lowerUri.includes('scheda') ||
+                           lowerUri.includes('katalog');
+
+        if (isPdfRelated || (preferredDomain && uri.includes(preferredDomain))) {
+          seenUrls.add(uri);
+          try {
+            const hostname = new URL(uri).hostname;
+            results.push({
+              url: uri,
+              title: chunk.web?.title || 'Adatlap',
+              source: hostname,
+              snippet: preferredDomain && hostname.includes(preferredDomain) ? '🏭 Gyártói forrás' : undefined,
+            });
+          } catch {
+            // Invalid URL
+          }
+        }
       }
     }
   }
 
-  // Also extract URLs from the text response
+  // Extract URLs from text response
   const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+\.pdf/gi;
+
+  // Match URLs more broadly
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
   const textUrls = textResponse.match(urlRegex) || [];
 
   for (const url of textUrls) {
-    if (!seenUrls.has(url)) {
-      seenUrls.add(url);
-      try {
-        results.push({
-          url,
-          title: 'PDF adatlap',
-          source: new URL(url).hostname,
-        });
-      } catch {
-        // Invalid URL, skip
+    // Clean URL (remove trailing punctuation)
+    const cleanUrl = url.replace(/[.,;:!?)]+$/, '');
+
+    if (!seenUrls.has(cleanUrl)) {
+      const lowerUrl = cleanUrl.toLowerCase();
+      const isPdfRelated = lowerUrl.includes('.pdf') ||
+                          lowerUrl.includes('datasheet') ||
+                          lowerUrl.includes('download');
+
+      if (isPdfRelated) {
+        seenUrls.add(cleanUrl);
+        try {
+          const hostname = new URL(cleanUrl).hostname;
+          results.push({
+            url: cleanUrl,
+            title: 'PDF adatlap',
+            source: hostname,
+          });
+        } catch {
+          // Invalid URL
+        }
       }
     }
   }
 
+  // Sort: preferred domain first
+  if (preferredDomain) {
+    results.sort((a, b) => {
+      const aIsPreferred = a.source.includes(preferredDomain) ? 0 : 1;
+      const bIsPreferred = b.source.includes(preferredDomain) ? 0 : 1;
+      return aIsPreferred - bIsPreferred;
+    });
+  }
+
   return results;
+}
+
+/**
+ * Search using Gemini API with Google Search Grounding
+ * First tries manufacturer site, then general search
+ */
+async function geminiSearch(termekNev: string, gyarto: string, apiKey: string): Promise<{ results: PdfResult[]; searchType: string }> {
+  const manufacturerPattern = MANUFACTURER_PATTERNS[gyarto];
+  const preferredDomain = manufacturerPattern?.domain;
+
+  // Step 1: Search on manufacturer website first
+  if (preferredDomain) {
+    const manufacturerPrompt = `Keresd meg a "${gyarto} ${termekNev}" termék PDF adatlapját!
+
+Keress CSAK itt: site:${preferredDomain}
+
+Keress:
+- PDF adatlap (datasheet)
+- Műszaki specifikáció
+- Termék dokumentáció
+- Letöltés link
+
+Add meg a talált PDF URL-eket. Ha találsz .pdf linket, azt mindenképpen add meg!`;
+
+    try {
+      const manufacturerData = await callGeminiWithSearch(manufacturerPrompt, apiKey);
+
+      if (manufacturerData.error) {
+        console.error('Gemini manufacturer search error:', manufacturerData.error);
+      } else {
+        const manufacturerResults = extractResultsFromGemini(manufacturerData, preferredDomain);
+        if (manufacturerResults.length > 0) {
+          return { results: manufacturerResults, searchType: 'manufacturer' };
+        }
+      }
+    } catch (err) {
+      console.error('Manufacturer search failed:', err);
+    }
+  }
+
+  // Step 2: General search if manufacturer search didn't work
+  const generalPrompt = `Keresd meg a "${gyarto} ${termekNev}" ventilátor PDF adatlapját!
+
+Keress:
+1. A gyártó hivatalos oldalán (${gyarto.toLowerCase()}.com, ${gyarto.toLowerCase()}.it, ${gyarto.toLowerCase()}.de)
+2. Magyar webshopokban (ventilatorhaz.hu, szelep.hu, szelloztetes.hu)
+3. Bármilyen megbízható forráson
+
+Fontos: PDF fájlokat keresek - datasheet, műszaki adatlap, specifikáció.
+Add meg az összes talált PDF URL-t!`;
+
+  try {
+    const generalData = await callGeminiWithSearch(generalPrompt, apiKey);
+
+    if (generalData.error) {
+      throw new Error(generalData.error.message);
+    }
+
+    const generalResults = extractResultsFromGemini(generalData, preferredDomain);
+    return { results: generalResults, searchType: 'general' };
+  } catch (err) {
+    console.error('General search failed:', err);
+    throw err;
+  }
 }
 
 /**
@@ -219,20 +321,18 @@ function getPatternResults(termekNev: string, gyarto: string): { results: PdfRes
       results.push({
         url: `${pattern.baseUrl}${path}`,
         title: `${gyarto} ${termekNev} adatlap (minta URL #${index + 1})`,
-        source: `${gyarto} hivatalos oldala (ellenőrizd!)`,
+        source: `${pattern.domain} (ellenőrizd!)`,
       });
     });
 
     suggestions.push(
-      `Keresd Google-ben: "${gyarto} ${termekNev} datasheet PDF"`,
+      `Google: site:${pattern.domain} "${termekNev}" filetype:pdf`,
       `Látogasd meg: ${pattern.searchUrl}`,
-      `Próbáld: ${pattern.baseUrl} + termék oldala`,
     );
   } else {
     suggestions.push(
-      `Keresd Google-ben: "${gyarto} ${termekNev} datasheet PDF"`,
-      `Keresd Google-ben: "${gyarto} ${termekNev} műszaki adatlap"`,
-      `Látogasd meg a ${gyarto} hivatalos weboldalát`,
+      `Google: "${gyarto} ${termekNev}" datasheet PDF`,
+      `Google: "${gyarto} ${termekNev}" műszaki adatlap`,
     );
   }
 
@@ -258,14 +358,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Ha van Gemini API kulcs, használjuk a Gemini + Google Search-öt
     if (geminiApiKey) {
       try {
-        const query = `${gyarto} ${termekNev} datasheet PDF`;
-        const results = await geminiSearch(query, gyarto, geminiApiKey);
+        const { results, searchType } = await geminiSearch(termekNev, gyarto, geminiApiKey);
+
+        // If Gemini found nothing, fall back to patterns
+        if (results.length === 0) {
+          const { results: patternResults, suggestions } = getPatternResults(termekNev, gyarto);
+          return new Response(JSON.stringify({
+            found: patternResults.length > 0,
+            results: patternResults,
+            search_suggestions: suggestions,
+            search_type: 'pattern_fallback',
+            warning: '⚠️ Gemini keresés nem talált PDF-et. Ezek minta URL-ek - ellenőrizd, hogy léteznek!',
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
 
         return new Response(JSON.stringify({
-          found: results.length > 0,
+          found: true,
           results,
           search_type: 'google',
-          query,
+          search_details: searchType === 'manufacturer' ? 'Gyártói oldalról' : 'Általános keresés',
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -279,7 +393,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           results,
           search_suggestions: suggestions,
           search_type: 'pattern_fallback',
-          warning: '⚠️ Gemini keresés sikertelen, URL minták alapján keresünk.',
+          warning: '⚠️ Gemini keresés sikertelen. Ezek minta URL-ek.',
           error: searchError instanceof Error ? searchError.message : 'Keresési hiba',
         }), {
           status: 200,
@@ -296,7 +410,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       results,
       search_suggestions: suggestions,
       search_type: 'pattern',
-      warning: '⚠️ Gemini keresés nincs konfigurálva. Ezek MINTA URL-ek. Állítsd be a GEMINI_API_KEY környezeti változót a valódi kereséshez.',
+      warning: '⚠️ GEMINI_API_KEY nincs beállítva. Ezek csak minta URL-ek. Állítsd be a Cloudflare-ben!',
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
