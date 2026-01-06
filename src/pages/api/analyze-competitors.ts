@@ -155,56 +155,88 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
       competitorData = { raw: competitorText };
     }
 
-    // === LÉPÉS 3: USP javaslatok összeállítása A GYÁRTÓI ADATOK ALAPJÁN ===
-    const uspPrompt = `A "${gyarto} ${termekNev}" TERMÉKSORHOZ készíts EGYEDI, MEGKÜLÖNBÖZTETŐ USP-ket.
+    // === LÉPÉS 3: USP javaslatok - CSAK SZÖVEGES, EGYEDI jellemzők! ===
 
-⚠️ KRITIKUS: NE ÍRJ ÁLTALÁNOSSÁGOKAT!
-Az alábbiak NEM USP-k, mert MINDEN gyártó mondhatja:
-❌ "Golyóscsapágyas motor" - ez alap, nem egyedi
-❌ "Csendes működés X dB" - minden ventilátor ír zajszintet
-❌ "Energiatakarékos" - mindenki mondja
-❌ "Megbízható" - üres szó
-❌ "Magas minőség" - üres szó
-❌ "IPX4 védelem" - szabványos, nem egyedi
+    // TELJESEN KISZŰRJÜK a numerikus/spec mezőket - ezek NEM kellenek az USP-khez!
+    const specFieldsToIgnore = [
+      'zajszint_db', 'legszallitas_m3h', 'teljesitmeny_w', 'nyomas_pa',
+      'aramfelvetel_a', 'csoatmero_mm', 'meret_mm', 'suly_kg', 'fordulat_rpm',
+      'ip_vedelem', 'homerseklet_min', 'homerseklet_max', 'garancia_ev',
+      'termek_nev', 'gyarto', 'kategoria', 'ar_ft'
+    ];
 
-✅ EZEK VISZONT VALÓDI USP-K (mert megkülönböztetnek):
-✅ "Függőlegesen és vízszintesen is szerelhető" - nem minden ventilátor tudja!
-✅ "Acélház epoxi bevonattal belül-kívül" - specifikus anyag és kivitel
-✅ "Hátrafelé hajlított lapátok légrektifikátorral" - technológiai különbség
-✅ "ISO 1940 szerinti dinamikus kiegyensúlyozás" - minőségi garancia
-✅ "Fali konzollal együtt szállítjuk" - praktikus előny
-✅ "Olasz gyártás és tervezés" - eredet
-✅ "Max +60°C-ig működik" - ha ez több mint a versenytársaknál
+    // Csak a szöveges mezőket tartjuk meg
+    const textualFeatures = extractedData
+      ? Object.entries(extractedData)
+          .filter(([key, value]) =>
+            !specFieldsToIgnore.includes(key) &&
+            typeof value === 'string' &&
+            value.length > 10
+          )
+          .map(([key, value]) => `${key}: ${value}`)
+          .join('\n')
+      : '';
 
-=== GYÁRTÓI ÁLLÍTÁSOK ===
+    const uspPrompt = `A "${gyarto} ${termekNev}" termékhez írj USP-ket.
+
+🚫🚫🚫 SZIGORÚAN TILOS A KÖVETKEZŐ USP TÍPUSOK 🚫🚫🚫
+
+NE ÍRJ USP-T EZEKRŐL (ezek specifikációk, nem USP-k):
+- Zajszint (dB) - TILOS!
+- Légszállítás (m³/h) - TILOS!
+- Teljesítmény (W) - TILOS!
+- Nyomás (Pa) - TILOS!
+- IP védettség - TILOS!
+- Bármilyen SZÁM - TILOS!
+
+Ezek minden ventilátor adatlapján szerepelnek, nem egyediek!
+
+✅ HELYETTE EZEKRŐL ÍRJ (szöveges, egyedi jellemzők):
+
+1. BESZERELÉSI RUGALMASSÁG
+   - "Vertical or horizontal installation" → függőleges és vízszintes szerelés
+   - Fali/mennyezeti/csőbe építhető változatok
+
+2. ANYAG ÉS KIVITEL
+   - "Steel housing with epoxy finish" → rozsdamentes acél, epoxi bevonat
+   - Speciális anyagok, bevonatok
+
+3. MOTOR TECHNOLÓGIA (de NE a wattot!)
+   - "EC motor with backward curved blades" → EC motor, speciális lapátkialakítás
+   - Légrektifikátor, áramlásoptimalizálás
+
+4. MINŐSÉGI TANÚSÍTVÁNYOK
+   - "ISO 1940 balanced" → ISO szerinti kiegyensúlyozás
+   - CE, egyéb tanúsítványok
+
+5. TARTOZÉKOK
+   - "Supplied with wall brackets" → fali konzol mellékelve
+   - Kábelek, szerelési anyagok
+
+6. SZÁRMAZÁS
+   - Olasz/német gyártás, mérnöki háttér
+
+=== GYÁRTÓI INFORMÁCIÓK ===
 ${JSON.stringify(manufacturerData, null, 2)}
 
-=== PDF JELLEMZŐK (keresd a SZÖVEGES leírásokat, ne a számokat!) ===
-${extractedData ? JSON.stringify(extractedData, null, 2) : 'Nincs'}
+=== SZÖVEGES JELLEMZŐK A PDF-BŐL ===
+${textualFeatures || 'Nincs szöveges jellemző'}
 
-=== FORGALMAZÓI INFO ===
-${JSON.stringify(competitorData, null, 2)}
+Írj 4-6 USP-t! Ha nincs elég egyedi jellemző, írj kevesebbet!
+SOHA ne használj számot a címben!
 
-📋 FELADAT:
-1. Keresd meg ami EGYEDI és MEGKÜLÖNBÖZTETŐ
-2. NE használj puszta számokat USP címnek (39 dB, 77W - ezek nem USP-k!)
-3. Fókuszálj: beszerelés, anyagok, technológia, tartozékok, származás, garanciák
-4. SOHA ne említs átmérőt!
-
-VÁLASZOLJ JSON FORMÁTUMBAN:
+JSON VÁLASZ:
 {
   "suggestions": [
     {
       "id": "USP_1",
-      "title": "EGYEDI, MEGKÜLÖNBÖZTETŐ cím (ne szám, ne általánosság!)",
-      "paragraph_1": "Miért egyedi ez? Mi a konkrét előny?",
-      "paragraph_2": "Mit jelent ez a vásárlónak a gyakorlatban?",
+      "title": "Rövid cím SZÁM NÉLKÜL",
+      "paragraph_1": "Technikai előny kifejtése",
+      "paragraph_2": "Gyakorlati haszon a vásárlónak",
       "source": "${gyarto}",
       "source_type": "manufacturer",
       "confidence": "high",
-      "original_claim": "Az eredeti állítás a gyártótól",
-      "image_suggestion": "product/installation/technical/lifestyle",
-      "why_unique": "Miért nem mondhatja ezt minden gyártó?"
+      "original_claim": "Eredeti szöveg a gyártótól"
     }
   ]
 }`;
