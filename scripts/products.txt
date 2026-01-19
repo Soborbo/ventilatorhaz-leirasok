@@ -1,0 +1,36 @@
+# Product List - Formátum: Termék Név | Gyártó
+# Soronként egy termék, | jellel elválasztva
+
+# Elicent termékek
+ELIX 100 | Elicent
+AXC 100 | Elicent
+TEKNOPOINT DUAL | Elicent
+VITRI 20 | Elicent
+
+# Maico termékek
+ER 100 | Maico
+ECA 100 | Maico
+ER-AP 60 | Maico
+
+# Blauberg termékek
+AERO 100 | Blauberg
+SILEO 100 | Blauberg
+VENTO EXPERT A50-1 | Blauberg
+
+# Vents termékek
+100 LD | Vents
+125 QUIET | Vents
+VENTS TT 100 | Vents
+
+# Awenta termékek
+WA100 | Awenta
+SYSTEM+ SILENT 100 | Awenta
+
+# Helios termékek
+MiniVent M1/100 | Helios
+M1/120 | Helios
+
+# Vortice termékek
+PUNTO FILO MF 100/4 | Vortice
+VORT QBK 100 | Vortice
+MICRO 100 | Vortice
