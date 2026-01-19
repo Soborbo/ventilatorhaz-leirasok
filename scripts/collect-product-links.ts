@@ -3,14 +3,15 @@
 /**
  * Product Link Collector
  *
- * Egyszerű script ami terméklistából PDF datasheet és gyártói oldal linkeket gyűjt.
+ * Gyűjt 3 linket minden termékhez a gyártói oldalról Gemini API segítségével.
  *
  * Input: products.txt fájl, soronként "Termék Név | Gyártó" formátumban
  * Output: product-links.json fájl a talált linkekkel
+ *
+ * FONTOS: GEMINI_API_KEY környezeti változó szükséges!
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
 
 interface ProductInput {
   name: string;
@@ -20,8 +21,11 @@ interface ProductInput {
 interface ProductLinks {
   product: string;
   manufacturer: string;
-  pdfLinks: string[];
-  manufacturerPageLinks: string[];
+  links: Array<{
+    url: string;
+    title: string;
+    type: 'pdf' | 'page';
+  }>;
   timestamp: string;
 }
 
@@ -33,120 +37,25 @@ interface CollectionResult {
   generatedAt: string;
 }
 
-// Gyártói URL pattern-ek
-const MANUFACTURER_PATTERNS: Record<string, {
-  baseUrl: string;
-  domain: string;
-  pdfPath: (productName: string) => string[];
-  productPageUrl: (productName: string) => string;
-}> = {
-  'Elicent': {
-    baseUrl: 'https://www.elicent.it',
-    domain: 'elicent.it',
-    pdfPath: (name) => {
-      const cleanName = name.toUpperCase().replace(/\s+/g, '-');
-      return [
-        `/content/uploads/2024/${cleanName}.pdf`,
-        `/content/uploads/2023/${cleanName}.pdf`,
-        `/content/uploads/2022/${cleanName}.pdf`,
-        `/content/uploads/2021/${cleanName}.pdf`,
-        `/content/uploads/2020/${cleanName}.pdf`,
-        `/content/uploads/2019/${cleanName}.pdf`,
-        `/content/uploads/2018/04/${cleanName}-16-5-18.pdf`,
-        `/download/schede-tecniche/${name.toLowerCase().replace(/\s+/g, '-')}.pdf`,
-      ];
-    },
-    productPageUrl: (name) => `https://www.elicent.it/en/products/?s=${encodeURIComponent(name)}`,
-  },
-  'Maico': {
-    baseUrl: 'https://www.maico-ventilatoren.com',
-    domain: 'maico-ventilatoren.com',
-    pdfPath: (name) => [
-      `/media/pdf/${name.toLowerCase()}.pdf`,
-      `/media/downloads/${name.toLowerCase()}.pdf`,
-    ],
-    productPageUrl: (name) => `https://www.maico-ventilatoren.com/en/products/?search=${encodeURIComponent(name)}`,
-  },
-  'Blauberg': {
-    baseUrl: 'https://blaubergvento.de',
-    domain: 'blaubergvento.de',
-    pdfPath: (name) => [
-      `/upload/files/${name.toLowerCase().replace(/\s+/g, '_')}.pdf`,
-      `/files/products/${name.toLowerCase().replace(/\s+/g, '-')}.pdf`,
-    ],
-    productPageUrl: (name) => `https://blaubergvento.de/en/search/?q=${encodeURIComponent(name)}`,
-  },
-  'Vents': {
-    baseUrl: 'https://ventilation-system.com',
-    domain: 'ventilation-system.com',
-    pdfPath: (name) => [
-      `/upload/medialibrary/${name.toUpperCase()}.pdf`,
-      `/products/${name.toLowerCase()}/datasheet.pdf`,
-      `/files/${name.toUpperCase()}.pdf`,
-    ],
-    productPageUrl: (name) => `https://ventilation-system.com/catalog/?q=${encodeURIComponent(name)}`,
-  },
-  'Awenta': {
-    baseUrl: 'https://www.awenta.pl',
-    domain: 'awenta.pl',
-    pdfPath: (name) => [
-      `/files/products/${name.toLowerCase()}.pdf`,
-      `/media/products/${name.toLowerCase()}.pdf`,
-    ],
-    productPageUrl: (name) => `https://www.awenta.pl/en/products/?search=${encodeURIComponent(name)}`,
-  },
-  'Helios': {
-    baseUrl: 'https://www.heliosventilatoren.de',
-    domain: 'heliosventilatoren.de',
-    pdfPath: (name) => [
-      `/fileadmin/documents/datenblaetter/${name}.pdf`,
-      `/fileadmin/downloads/${name}.pdf`,
-    ],
-    productPageUrl: (name) => `https://www.heliosventilatoren.de/de/produkte/?search=${encodeURIComponent(name)}`,
-  },
-  'Vortice': {
-    baseUrl: 'https://www.vortice.com',
-    domain: 'vortice.com',
-    pdfPath: (name) => [
-      `/media/products/${name.toLowerCase()}.pdf`,
-      `/downloads/${name.toLowerCase()}.pdf`,
-    ],
-    productPageUrl: (name) => `https://www.vortice.com/search/?q=${encodeURIComponent(name)}`,
-  },
-};
-
 /**
- * Check if URL is accessible (via HEAD request)
+ * Call Gemini API with search grounding to find 3 links from manufacturer's website
  */
-async function isUrlAccessible(url: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+async function searchWithGemini(productName: string, manufacturer: string, apiKey: string): Promise<ProductLinks['links']> {
+  const searchPrompt = `Find information about this ventilator/fan product: ${manufacturer} ${productName}
 
-    const response = await fetch(url, {
-      method: 'HEAD',
-      signal: controller.signal,
-      redirect: 'follow',
-    });
+Your task:
+1. Find EXACTLY 3 links from the manufacturer's official website
+2. Prioritize:
+   - PDF datasheet/technical specification (most important)
+   - Product page on manufacturer's website
+   - Related documentation or installation guide
 
-    clearTimeout(timeoutId);
-    return response.ok; // 200-299 status codes
-  } catch (error) {
-    return false;
-  }
-}
+Requirements:
+- All links MUST be from the manufacturer's official domain
+- Prefer English or Hungarian language pages
+- Return the 3 most relevant links
 
-/**
- * Call Gemini API with search grounding to find PDFs and product pages
- */
-async function searchWithGemini(productName: string, manufacturer: string, apiKey: string): Promise<{ pdfLinks: string[], pageLinks: string[] }> {
-  const searchPrompt = `Keress információt erről a termékről: ${manufacturer} ${productName}
-
-Két dolgot keress:
-1. PDF adatlap (datasheet) - hivatalos gyártói PDF dokumentum
-2. A termék oldala a gyártó weboldalán
-
-Add meg a talált URL-eket.`;
+Provide the URLs you find.`;
 
   try {
     const response = await fetch(
@@ -174,25 +83,32 @@ Add meg a talált URL-eket.`;
     const data = await response.json();
 
     if (data.error) {
-      console.error(`Gemini API hiba (${productName}):`, data.error);
-      return { pdfLinks: [], pageLinks: [] };
+      console.error(`  ❌ Gemini API hiba: ${data.error.message}`);
+      return [];
     }
 
-    const pdfLinks = new Set<string>();
-    const pageLinks = new Set<string>();
+    const foundLinks: ProductLinks['links'] = [];
+    const seenUrls = new Set<string>();
 
     // Extract from grounding metadata
     const groundingChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
     for (const chunk of groundingChunks) {
       const uri = chunk.web?.uri;
-      if (uri) {
-        // Resolve redirects
+      if (uri && !seenUrls.has(uri)) {
         const resolvedUrl = await resolveRedirectUrl(uri);
 
-        if (resolvedUrl.toLowerCase().includes('.pdf')) {
-          pdfLinks.add(resolvedUrl);
-        } else {
-          pageLinks.add(resolvedUrl);
+        if (!seenUrls.has(resolvedUrl)) {
+          seenUrls.add(resolvedUrl);
+
+          // Determine type
+          const isPdf = resolvedUrl.toLowerCase().includes('.pdf');
+
+          foundLinks.push({
+            url: resolvedUrl,
+            title: chunk.web?.title || 'Találat',
+            type: isPdf ? 'pdf' : 'page',
+          });
         }
       }
     }
@@ -205,20 +121,31 @@ Add meg a talált URL-eket.`;
     for (const url of textUrls) {
       const cleanUrl = url.replace(/[.,;:!?)]+$/, '');
 
-      if (cleanUrl.toLowerCase().includes('.pdf')) {
-        pdfLinks.add(cleanUrl);
-      } else {
-        pageLinks.add(cleanUrl);
+      if (!seenUrls.has(cleanUrl)) {
+        seenUrls.add(cleanUrl);
+
+        const isPdf = cleanUrl.toLowerCase().includes('.pdf');
+
+        foundLinks.push({
+          url: cleanUrl,
+          title: 'Találat',
+          type: isPdf ? 'pdf' : 'page',
+        });
       }
     }
 
-    return {
-      pdfLinks: Array.from(pdfLinks),
-      pageLinks: Array.from(pageLinks),
-    };
+    // Sort: PDFs first, then pages
+    foundLinks.sort((a, b) => {
+      if (a.type === 'pdf' && b.type !== 'pdf') return -1;
+      if (a.type !== 'pdf' && b.type === 'pdf') return 1;
+      return 0;
+    });
+
+    // Return top 3
+    return foundLinks.slice(0, 3);
   } catch (error) {
-    console.error(`Gemini keresés sikertelen (${productName}):`, error);
-    return { pdfLinks: [], pageLinks: [] };
+    console.error(`  ❌ Gemini keresés sikertelen:`, error);
+    return [];
   }
 }
 
@@ -248,64 +175,28 @@ async function resolveRedirectUrl(url: string): Promise<string> {
 }
 
 /**
- * Get links using URL patterns (fallback when no API key)
- */
-function getLinksFromPatterns(productName: string, manufacturer: string): { pdfLinks: string[], pageLinks: string[] } {
-  const pattern = MANUFACTURER_PATTERNS[manufacturer];
-
-  if (!pattern) {
-    console.warn(`Nincs pattern ${manufacturer} gyártóhoz - Google kereséssel próbálkozz.`);
-    return { pdfLinks: [], pageLinks: [] };
-  }
-
-  const pdfPaths = pattern.pdfPath(productName);
-  const pdfLinks = pdfPaths.map(path => `${pattern.baseUrl}${path}`);
-  const pageLinks = [pattern.productPageUrl(productName)];
-
-  return { pdfLinks, pageLinks };
-}
-
-/**
  * Collect links for a single product
  */
-async function collectProductLinks(product: ProductInput, geminiApiKey?: string): Promise<ProductLinks> {
+async function collectProductLinks(product: ProductInput, geminiApiKey: string): Promise<ProductLinks> {
   console.log(`\n🔍 Keresés: ${product.manufacturer} ${product.name}`);
+  console.log('  📡 Gemini API keresés (3 link gyártói oldalról)...');
 
-  let pdfLinks: string[] = [];
-  let pageLinks: string[] = [];
+  const links = await searchWithGemini(product.name, product.manufacturer, geminiApiKey);
 
-  // Try Gemini API first if available
-  if (geminiApiKey) {
-    console.log('  📡 Gemini API keresés...');
-    const geminiResults = await searchWithGemini(product.name, product.manufacturer, geminiApiKey);
-    pdfLinks = geminiResults.pdfLinks;
-    pageLinks = geminiResults.pageLinks;
-
-    if (pdfLinks.length > 0 || pageLinks.length > 0) {
-      console.log(`  ✅ Találat: ${pdfLinks.length} PDF, ${pageLinks.length} oldal`);
-    } else {
-      console.log('  ⚠️  Gemini nem talált semmit, URL pattern próba...');
-    }
-  }
-
-  // Fallback to patterns if Gemini found nothing or no API key
-  if (pdfLinks.length === 0 && pageLinks.length === 0) {
-    console.log('  🔗 URL pattern alapú linkek...');
-    const patternResults = getLinksFromPatterns(product.name, product.manufacturer);
-    pdfLinks = patternResults.pdfLinks;
-    pageLinks = patternResults.pageLinks;
-
-    if (pdfLinks.length > 0 || pageLinks.length > 0) {
-      console.log(`  📝 Generált: ${pdfLinks.length} PDF URL, ${pageLinks.length} oldal URL`);
-      console.log('  ⚠️  Ezek NEM ellenőrzött linkek - lehet hogy nem léteznek!');
-    }
+  if (links.length > 0) {
+    console.log(`  ✅ Találat: ${links.length} link`);
+    links.forEach((link, i) => {
+      const icon = link.type === 'pdf' ? '📄' : '🔗';
+      console.log(`     ${icon} ${link.url}`);
+    });
+  } else {
+    console.log(`  ⚠️  Nincs találat`);
   }
 
   return {
     product: product.name,
     manufacturer: product.manufacturer,
-    pdfLinks,
-    manufacturerPageLinks: pageLinks,
+    links,
     timestamp: new Date().toISOString(),
   };
 }
@@ -352,6 +243,19 @@ async function main() {
   console.log('🚀 Product Link Collector');
   console.log('=========================\n');
 
+  // Check for Gemini API key
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    console.error('❌ HIBA: GEMINI_API_KEY környezeti változó nincs beállítva!\n');
+    console.log('Állítsd be:');
+    console.log('  export GEMINI_API_KEY="your-key-here"\n');
+    console.log('API kulcs beszerzése:');
+    console.log('  https://aistudio.google.com/apikey\n');
+    process.exit(1);
+  }
+
+  console.log('✅ GEMINI_API_KEY megtalálva\n');
+
   // Check if input file exists
   if (!fs.existsSync(inputFile)) {
     console.error(`❌ Hiba: ${inputFile} nem található!`);
@@ -371,15 +275,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Check for Gemini API key
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (geminiApiKey) {
-    console.log('✅ GEMINI_API_KEY megtalálva - Google keresés engedélyezve\n');
-  } else {
-    console.log('⚠️  GEMINI_API_KEY nincs beállítva - csak URL pattern-ek\n');
-    console.log('   Állítsd be: export GEMINI_API_KEY="your-key-here"\n');
-  }
-
   // Collect links for all products
   const results: ProductLinks[] = [];
   let successCount = 0;
@@ -393,14 +288,14 @@ async function main() {
       const links = await collectProductLinks(product, geminiApiKey);
       results.push(links);
 
-      if (links.pdfLinks.length > 0 || links.manufacturerPageLinks.length > 0) {
+      if (links.links.length > 0) {
         successCount++;
       } else {
         failureCount++;
       }
 
       // Rate limit for API calls (1 request per second)
-      if (geminiApiKey && i < products.length - 1) {
+      if (i < products.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } catch (error) {
@@ -409,8 +304,7 @@ async function main() {
       results.push({
         product: product.name,
         manufacturer: product.manufacturer,
-        pdfLinks: [],
-        manufacturerPageLinks: [],
+        links: [],
         timestamp: new Date().toISOString(),
       });
     }

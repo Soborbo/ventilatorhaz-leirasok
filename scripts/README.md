@@ -1,14 +1,36 @@
 # Product Link Collector 🔗
 
-Egyszerű script, ami terméklistából automatikusan gyűjti össze:
-- PDF adatlapok (datasheet) linkjeit
-- Gyártói termékoldal linkjeit
+Automatikusan gyűjt **3 linket minden termékhez** a gyártói oldalról Gemini API segítségével.
 
-## 🚀 Gyors használat
+## 🎯 Mit csinál?
 
-### 1. Készítsd el a terméklistát
+Minden termékhez megkeresi:
+1. **PDF adatlap** (datasheet/műszaki dokumentáció)
+2. **Termékoldal** a gyártó weboldalán
+3. **További releváns link** (pl. installation guide, katalógus)
 
-Hozz létre egy `products.txt` fájlt a `scripts/` mappában:
+Mind a 3 link a **gyártó hivatalos weboldaláról** származik, angol vagy magyar nyelven.
+
+---
+
+## 🚀 Használat
+
+### 1. API kulcs beállítása
+
+A script **Gemini API-t** használ Google kereséssel. API kulcs szükséges!
+
+```bash
+export GEMINI_API_KEY="your-api-key-here"
+```
+
+**API kulcs beszerzése:**
+1. Menj a https://aistudio.google.com/apikey oldalra
+2. Hozz létre egy új API kulcsot (ingyenes)
+3. Állítsd be a környezeti változót
+
+### 2. Terméklista készítése
+
+Szerkeszd a `products.txt` fájlt:
 
 ```
 ELIX 100 | Elicent
@@ -19,167 +41,169 @@ AERO 100 | Blauberg
 
 **Formátum:** `Termék Név | Gyártó` (soronként egy termék)
 
-### 2. Futtasd a scriptet
+### 3. Futtatás
 
 ```bash
 cd scripts/
 
-# TypeScript közvetlenül (ts-node szükséges)
+# Alapértelmezett: products.txt -> product-links.json
 npx ts-node collect-product-links.ts
 
-# Vagy saját input/output fájlokkal
+# Saját fájlokkal
 npx ts-node collect-product-links.ts my-products.txt my-output.json
 ```
 
-### 3. Eredmény
-
-A script létrehoz egy `product-links.json` fájlt:
+### 4. Eredmény
 
 ```json
 {
   "totalProducts": 20,
-  "successCount": 18,
-  "failureCount": 2,
+  "successCount": 19,
+  "failureCount": 1,
   "products": [
     {
       "product": "ELIX 100",
       "manufacturer": "Elicent",
-      "pdfLinks": [
-        "https://www.elicent.it/content/uploads/2023/ELIX-100.pdf"
-      ],
-      "manufacturerPageLinks": [
-        "https://www.elicent.it/en/products/elix-100/"
+      "links": [
+        {
+          "url": "https://www.elicent.it/content/uploads/2023/ELIX-100.pdf",
+          "title": "ELIX 100 Datasheet",
+          "type": "pdf"
+        },
+        {
+          "url": "https://www.elicent.it/en/products/elix-100/",
+          "title": "ELIX 100 Product Page",
+          "type": "page"
+        },
+        {
+          "url": "https://www.elicent.it/en/catalog-2023/",
+          "title": "Elicent Catalog 2023",
+          "type": "page"
+        }
       ],
       "timestamp": "2026-01-19T12:00:00.000Z"
-    },
-    ...
+    }
   ],
   "generatedAt": "2026-01-19T12:05:00.000Z"
 }
 ```
 
-## 🔑 Gemini API használata (opcionális, de ajánlott)
+---
 
-A script **két módban** működik:
-
-### 1. **Gemini API mód** (ajánlott) - Valós Google keresés
-
-Ha beállítasz egy Gemini API kulcsot, a script valós Google kereséssel találja meg a linkeket.
-
-```bash
-export GEMINI_API_KEY="your-api-key-here"
-npx ts-node collect-product-links.ts
-```
-
-**Előnyök:**
-- ✅ Valódi, létező linkeket talál
-- ✅ Pontosabb találatok
-- ✅ Több gyártót támogat (nem csak a beépített pattern-eket)
-
-**API kulcs beszerzése:**
-1. Menj a https://aistudio.google.com/apikey oldalra
-2. Hozz létre egy új API kulcsot
-3. Állítsd be: `export GEMINI_API_KEY="..."`
-
-### 2. **Pattern mód** (fallback) - URL pattern alapú
-
-Ha nincs API kulcs, a script URL pattern-ek alapján generál lehetséges linkeket.
-
-**Figyelem:**
-- ⚠️ Ezek NEM ellenőrzött linkek
-- ⚠️ Lehet, hogy a linkek nem léteznek
-- ⚠️ Manuálisan kell ellenőrizni őket
-
-## 📋 Támogatott gyártók
-
-A script a következő gyártókat ismeri (pattern mód):
-
-- **Elicent** (elicent.it)
-- **Maico** (maico-ventilatoren.com)
-- **Blauberg** (blaubergvento.de)
-- **Vents** (ventilation-system.com)
-- **Awenta** (awenta.pl)
-- **Helios** (heliosventilatoren.de)
-- **Vortice** (vortice.com)
-
-**Gemini API móddal** bármilyen gyártó működik!
-
-## 🛠️ Telepítés
-
-Ha a projektben még nincs `ts-node`:
-
-```bash
-npm install --save-dev ts-node @types/node
-```
-
-## 📝 Példa kimenet
+## 📊 Példa futtatás
 
 ```
 🚀 Product Link Collector
 =========================
 
-📋 20 termék betöltve a products.txt fájlból
+✅ GEMINI_API_KEY megtalálva
 
-✅ GEMINI_API_KEY megtalálva - Google keresés engedélyezve
+📋 20 termék betöltve a products.txt fájlból
 
 [1/20]
 🔍 Keresés: Elicent ELIX 100
-  📡 Gemini API keresés...
-  ✅ Találat: 2 PDF, 1 oldal
+  📡 Gemini API keresés (3 link gyártói oldalról)...
+  ✅ Találat: 3 link
+     📄 https://www.elicent.it/content/uploads/2023/ELIX-100.pdf
+     🔗 https://www.elicent.it/en/products/elix-100/
+     🔗 https://www.elicent.it/en/downloads/
 
 [2/20]
 🔍 Keresés: Maico ER 100
-  📡 Gemini API keresés...
-  ✅ Találat: 1 PDF, 1 oldal
+  📡 Gemini API keresés (3 link gyártói oldalról)...
+  ✅ Találat: 3 link
+     📄 https://www.maico-ventilatoren.com/media/pdf/er-100.pdf
+     🔗 https://www.maico-ventilatoren.com/en/products/er-100/
+     🔗 https://www.maico-ventilatoren.com/en/catalog/
 
 ...
 
 📊 Összegzés
 ============
 Összes termék: 20
-Sikeres:      18 (90%)
-Sikertelen:   2
+Sikeres:      19 (95%)
+Sikertelen:   1
 
 💾 Eredmény mentve: product-links.json
 ```
 
+---
+
+## ⚙️ Hogyan működik?
+
+1. **Beolvassa** a terméklistát a text fájlból
+2. **Egyesével** feldolgozza a termékeket (20 termék = 1 futtatás!)
+3. Minden terméknél:
+   - Gemini API-t hív Google Search Grounding-gal
+   - Megkeresi a 3 legfontosabb linket a gyártó oldaláról
+   - Prioritás: PDF adatlap > termékoldal > egyéb dok
+4. **Összes eredményt** egy JSON fájlba menti
+
+**Rate limiting:** 1 másodperc várakozás minden keresés között (API védelem)
+
+---
+
+## 🛠️ Telepítés
+
+Ha még nincs `ts-node`:
+
+```bash
+npm install --save-dev ts-node @types/node
+```
+
+---
+
 ## 🎯 Tippek
 
-1. **Legyen pontos a terméknév:** Minél pontosabb a terméknév, annál jobb a találat
-2. **Gyártó neve:** Használd a hivatalos gyártó nevet (pl. "Elicent", nem "elicent spa")
-3. **API kulcs:** Gemini API-val sokkal jobb eredményeket kapsz
-4. **Rate limiting:** A script 1 másodpercet vár minden keresés között (API limit védelem)
+✅ **Pontos terméknév:** Minél pontosabb, annál jobb a találat
+✅ **Hivatalos gyártó név:** Használd a gyártó hivatalos nevét
+✅ **20 termék egyszerre:** Egy futtatással mind feldolgozva
+✅ **Angol/magyar:** A script mindkét nyelvet preferálja
+
+---
 
 ## 🐛 Hibaelhárítás
 
 **"GEMINI_API_KEY nincs beállítva"**
-- Állítsd be a környezeti változót: `export GEMINI_API_KEY="..."`
-
-**"Nincs pattern X gyártóhoz"**
-- Használj Gemini API-t, az minden gyártóval működik
-- Vagy add hozzá a gyártót a `MANUFACTURER_PATTERNS`-hez
+```bash
+export GEMINI_API_KEY="your-key-here"
+```
 
 **"Hibás sor (hiányzó gyártó?)"**
-- Ellenőrizd a formátumot: `Termék Név | Gyártó`
+- Formátum: `Termék Név | Gyártó`
 - Vigyázz a `|` karakter helyére
+
+**"Gemini API hiba"**
+- Ellenőrizd az API kulcs érvényességét
+- Rate limit: max 60 kérés/perc (a script automatikusan vár)
+
+**"Nincs találat"**
+- Lehet hogy a termék nem létezik
+- Vagy nem található a gyártó oldalán
+- Próbáld pontosabb terméknévvel
+
+---
 
 ## 📄 Fájlok
 
 ```
 scripts/
-├── collect-product-links.ts  # Fő script
-├── products.txt              # Input példa (20 termék)
+├── collect-product-links.ts  # Fő script (csak Gemini API)
+├── products.txt              # Input (20 termék példa)
 ├── product-links.json        # Output (generálva)
 └── README.md                 # Ez a fájl
 ```
 
-## 🔄 Workflow
+---
 
-1. Szerkeszd a `products.txt` fájlt (add hozzá a termékeket)
-2. Futtasd: `npx ts-node collect-product-links.ts`
-3. Nézd meg az eredményt: `product-links.json`
-4. Használd fel a linkeket (pl. másold be táblázatba, stb.)
+## ✨ Újdonságok ebben a verzióban
+
+- ✅ **Csak Gemini API** - nincs fallback URL pattern mód
+- ✅ **Pontosan 3 link/termék** - mindig gyártói forrásból
+- ✅ **Angol/magyar** nyelv preferencia
+- ✅ **Egyszerűbb kimenet** - egyetlen `links` tömb
+- ✅ **PDF prioritás** - adatlapok elsőbbséget kapnak
 
 ---
 
-**Kérdés?** Nézd meg a script kódját vagy futtasd `--help` opcióval (soon™).
+**Kérdés vagy probléma?** Nézd meg a script kódját vagy nyiss issue-t!
