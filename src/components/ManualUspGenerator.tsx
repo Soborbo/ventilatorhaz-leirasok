@@ -30,6 +30,13 @@ interface ProductInfo {
   meretrajz_url: string;
 }
 
+interface GeneratingState {
+  intro_title: boolean;
+  intro_p1: boolean;
+  intro_p2: boolean;
+  tudta: boolean;
+}
+
 const createEmptyUsp = (): ManualUsp => ({
   id: crypto.randomUUID(),
   title: '',
@@ -61,6 +68,13 @@ export default function ManualUspGenerator() {
     tudta: '',
   });
 
+  const [introGenerating, setIntroGenerating] = useState<GeneratingState>({
+    intro_title: false,
+    intro_p1: false,
+    intro_p2: false,
+    tudta: false,
+  });
+
   const [usps, setUsps] = useState<ManualUsp[]>([
     createEmptyUsp(),
     createEmptyUsp(),
@@ -71,6 +85,8 @@ export default function ManualUspGenerator() {
   const [rovidLeiras, setRovidLeiras] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [copied, setCopied] = useState(false);
+
+  const canGenerate = productInfo.termek_nev.trim() && productInfo.gyarto.trim();
 
   const addUsp = () => {
     if (usps.length < 7) {
@@ -102,28 +118,31 @@ export default function ManualUspGenerator() {
     }
   };
 
-  const generateUspText = async (index: number) => {
-    const usp = usps[index];
-    if (!usp.title.trim()) {
-      alert('Először add meg az USP címét!');
-      return;
-    }
-
-    if (!productInfo.termek_nev.trim() || !productInfo.gyarto.trim()) {
+  const generateText = async (type: string, uspIndex?: number, uspTitle?: string) => {
+    if (!canGenerate) {
       alert('Először add meg a termék nevét és gyártóját!');
       return;
     }
 
-    updateUsp(index, 'isGenerating', true);
+    if (type === 'usp' && uspIndex !== undefined) {
+      if (!uspTitle?.trim()) {
+        alert('Először add meg az USP címét!');
+        return;
+      }
+      updateUsp(uspIndex, 'isGenerating', true);
+    } else {
+      setIntroGenerating(prev => ({ ...prev, [type]: true }));
+    }
 
     try {
       const response = await fetch('/api/generate-usp-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          usp_title: usp.title,
+          type,
           termek_nev: productInfo.termek_nev,
           gyarto: productInfo.gyarto,
+          usp_title: uspTitle,
         }),
       });
 
@@ -132,13 +151,27 @@ export default function ManualUspGenerator() {
       if (data.error) {
         alert(`Hiba: ${data.error}`);
       } else if (data.text) {
-        updateUsp(index, 'paragraph', data.text);
+        if (type === 'usp' && uspIndex !== undefined) {
+          updateUsp(uspIndex, 'paragraph', data.text);
+        } else if (type === 'intro_title') {
+          setIntroText(prev => ({ ...prev, title: data.text }));
+        } else if (type === 'intro_p1') {
+          setIntroText(prev => ({ ...prev, paragraph_1: data.text }));
+        } else if (type === 'intro_p2') {
+          setIntroText(prev => ({ ...prev, paragraph_2: data.text }));
+        } else if (type === 'tudta') {
+          setIntroText(prev => ({ ...prev, tudta: data.text }));
+        }
       }
     } catch (error) {
       console.error('Generate error:', error);
       alert('Hiba történt a szöveg generálása közben');
     } finally {
-      updateUsp(index, 'isGenerating', false);
+      if (type === 'usp' && uspIndex !== undefined) {
+        updateUsp(uspIndex, 'isGenerating', false);
+      } else {
+        setIntroGenerating(prev => ({ ...prev, [type]: false }));
+      }
     }
   };
 
@@ -160,20 +193,14 @@ export default function ManualUspGenerator() {
   const generateHtml = () => {
     const { termek_nev, gyarto, pdf_url, meretrajz_url } = productInfo;
 
-    // Generate short description
     const shortDesc = `A ${termek_nev} ${gyarto} ventilátor megbízható teljesítményével ideális választás fürdőszobák és mellékhelyiségek szellőztetésére.`;
     setRovidLeiras(shortDesc);
 
-    // Build full HTML
     const parts: string[] = [];
 
-    // Start container
     parts.push('<div class="termekoldal-container">');
-
-    // Intro section
     parts.push('<div class="intro-video-section">');
 
-    // Media column (video or image)
     if (introMedia.type === 'video' && introMedia.video_url.trim()) {
       parts.push('<div class="intro-video-col">');
       parts.push('<div class="video-wrapper">');
@@ -185,7 +212,6 @@ export default function ManualUspGenerator() {
       parts.push('</div>');
     }
 
-    // Text column
     parts.push('<div class="intro-text-col">');
     const introTitle = introText.title.trim() || `${termek_nev}: Megbízható ${gyarto} minőség`;
     const introPara1 = introText.paragraph_1.trim() || `A ${termek_nev} kiválóan alkalmas fürdőszobák párátlanítására, kisebb helyiségek szellőztetésére.`;
@@ -196,7 +222,6 @@ export default function ManualUspGenerator() {
     parts.push(`<p>${introPara2}</p>`);
     parts.push('</div></div>');
 
-    // Gyári adatlap
     const pdfLink = pdf_url.trim() || '[ADATLAP_PDF_LINK]';
     const meretrajzLink = meretrajz_url.trim() || '[MERETRAJZ_LINK]';
 
@@ -207,22 +232,17 @@ export default function ManualUspGenerator() {
     parts.push(`<div class="gyariadatlap-right"><img src="${meretrajzLink}" alt="${termek_nev} méretrajz"></div>`);
     parts.push('</div>');
 
-    // Tudta
     const tudtaText = introText.tudta.trim() || `A ${gyarto} az egyik legmegbízhatóbb európai légtechnikai gyártó.`;
     parts.push('<div class="tudta"><div class="tudta-ikon">i</div><div class="tudta-tartalom">');
     parts.push(`<p><strong>Tudta?</strong> ${tudtaText}</p>`);
     parts.push('</div></div></div>');
 
-    // Ventilátorház bemutatkozó (fixed)
     parts.push('<div class="ventilatorhaz-bemutatkozo"><div class="ventilatorhaz-bemutatkozo-kep"><img src="https://shop.unas.hu/shop_ordered/55564/pic/nemesventilatorhaz-csapata.webp" alt="A Nemes Ventilátorház csapata"></div><div class="ventilatorhaz-bemutatkozo-szoveg"><h2>Vásároljon Magyarország egyik legmegbízhatóbb légtechnikai áruházából</h2><p>A Ventilátorház a Budapest 18. kerületében, a Királyhágó utca 30. található. Sokszoros díjnyertes cég vagyunk, több évtizedes tapasztalattal és hibátlan véleményekkel. Ha kérdése van, hívja munkatársainkat bizalommal a <strong>+36-70-369-9944</strong> telefonszámon!</p><div class="ventilatorhaz-gombok"><a href="https://www.nemesventilatorhaz.hu/visszahivaskero" class="ventilatorhaz-btn ventilatorhaz-btn-callback">Ingyenes tanácsadást kérek</a><a href="tel:+36703699944" class="ventilatorhaz-btn ventilatorhaz-btn-call">Felhívom most</a></div></div></div>');
 
-    // TrustIndex
     parts.push("<script defer async src='https://cdn.trustindex.io/loader.js?cbff376529ad876c29862863c17'></script>");
 
-    // Miért ajánljuk header
     parts.push('<div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #333; margin-bottom: 20px;"><h1 style="margin: 0;">Miért ajánljuk?</h1></div>');
 
-    // USP blocks - only include filled ones
     const filledUsps = usps.filter(usp =>
       usp.title.trim() &&
       usp.paragraph.trim() &&
@@ -240,7 +260,6 @@ export default function ManualUspGenerator() {
       parts.push('</div></div>');
     });
 
-    // Close container
     parts.push('</div>');
 
     setHtmlOutput(parts.join(''));
@@ -257,32 +276,27 @@ export default function ManualUspGenerator() {
   };
 
   const resetForm = () => {
-    setProductInfo({
-      termek_nev: '',
-      gyarto: '',
-      pdf_url: '',
-      meretrajz_url: '',
-    });
-    setIntroMedia({
-      type: 'video',
-      video_url: '',
-      image_url: '',
-      image_alt: '',
-    });
-    setIntroText({
-      title: '',
-      paragraph_1: '',
-      paragraph_2: '',
-      tudta: '',
-    });
+    setProductInfo({ termek_nev: '', gyarto: '', pdf_url: '', meretrajz_url: '' });
+    setIntroMedia({ type: 'video', video_url: '', image_url: '', image_alt: '' });
+    setIntroText({ title: '', paragraph_1: '', paragraph_2: '', tudta: '' });
     setUsps([createEmptyUsp(), createEmptyUsp(), createEmptyUsp()]);
     setHtmlOutput('');
     setRovidLeiras('');
   };
 
-  const filledUspCount = usps.filter(usp =>
-    usp.title.trim() && usp.paragraph.trim()
-  ).length;
+  const filledUspCount = usps.filter(usp => usp.title.trim() && usp.paragraph.trim()).length;
+
+  const AiButton = ({ onClick, isGenerating, disabled }: { onClick: () => void; isGenerating: boolean; disabled?: boolean }) => (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      onClick={onClick}
+      disabled={isGenerating || disabled || !canGenerate}
+      style={{ padding: '4px 12px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+    >
+      {isGenerating ? 'Generálás...' : 'AI'}
+    </button>
+  );
 
   return (
     <div>
@@ -407,18 +421,24 @@ export default function ManualUspGenerator() {
         {/* Intro Text */}
         <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
           <div className="form-group">
-            <label className="form-label">Bevezető cím (opcionális)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
+              <label className="form-label" style={{ margin: 0 }}>Bevezető cím</label>
+              <AiButton onClick={() => generateText('intro_title')} isGenerating={introGenerating.intro_title} />
+            </div>
             <input
               type="text"
               className="form-input"
               value={introText.title}
               onChange={(e) => setIntroText({ ...introText, title: e.target.value })}
-              placeholder={`Alapértelmezett: "${productInfo.termek_nev || '[Termék neve]'}: Megbízható ${productInfo.gyarto || '[Gyártó]'} minőség"`}
+              placeholder={`Alapértelmezett: "${productInfo.termek_nev || '[Termék]'}: Megbízható ${productInfo.gyarto || '[Gyártó]'} minőség"`}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">1. bekezdés (opcionális)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
+              <label className="form-label" style={{ margin: 0 }}>1. bekezdés</label>
+              <AiButton onClick={() => generateText('intro_p1')} isGenerating={introGenerating.intro_p1} />
+            </div>
             <textarea
               className="form-input"
               value={introText.paragraph_1}
@@ -430,7 +450,10 @@ export default function ManualUspGenerator() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">2. bekezdés (opcionális)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
+              <label className="form-label" style={{ margin: 0 }}>2. bekezdés</label>
+              <AiButton onClick={() => generateText('intro_p2')} isGenerating={introGenerating.intro_p2} />
+            </div>
             <textarea
               className="form-input"
               value={introText.paragraph_2}
@@ -442,7 +465,10 @@ export default function ManualUspGenerator() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">"Tudta?" szöveg (opcionális)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
+              <label className="form-label" style={{ margin: 0 }}>"Tudta?" szöveg</label>
+              <AiButton onClick={() => generateText('tudta')} isGenerating={introGenerating.tudta} />
+            </div>
             <textarea
               className="form-input"
               value={introText.tudta}
@@ -530,28 +556,17 @@ export default function ManualUspGenerator() {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
                     <label className="form-label" style={{ margin: 0 }}>Szöveg *</label>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => generateUspText(index)}
-                      disabled={usp.isGenerating || !usp.title.trim()}
-                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                    >
-                      {usp.isGenerating ? (
-                        <>
-                          <span className="spinner" style={{ width: '12px', height: '12px', marginRight: '4px' }}></span>
-                          Generálás...
-                        </>
-                      ) : (
-                        'AI generálás'
-                      )}
-                    </button>
+                    <AiButton
+                      onClick={() => generateText('usp', index, usp.title)}
+                      isGenerating={usp.isGenerating || false}
+                      disabled={!usp.title.trim()}
+                    />
                   </div>
                   <textarea
                     className="form-input"
                     value={usp.paragraph}
                     onChange={(e) => updateUsp(index, 'paragraph', e.target.value)}
-                    placeholder="A bekezdés szövege... (vagy használd az AI generálást)"
+                    placeholder="A bekezdés szövege... (vagy használd az AI gombot)"
                     rows={3}
                     style={{ resize: 'vertical' }}
                   />
