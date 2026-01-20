@@ -106,7 +106,19 @@ Csak az alt szöveget add vissza, semmi mást.`;
   }
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
+  // Get API key from Cloudflare runtime or import.meta.env
+  const runtime = (locals as any).runtime;
+  const apiKey = runtime?.env?.ANTHROPIC_API_KEY || import.meta.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    console.error('ANTHROPIC_API_KEY is not set');
+    return new Response(
+      JSON.stringify({ error: 'API kulcs nincs beállítva. Ellenőrizd az ANTHROPIC_API_KEY környezeti változót.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const body = await request.json();
     const { type, termek_nev, gyarto, usp_title } = body;
@@ -134,16 +146,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Check if API key is available
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY is not set');
-      return new Response(
-        JSON.stringify({ error: 'API kulcs nincs beállítva. Ellenőrizd az ANTHROPIC_API_KEY környezeti változót.' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const client = new Anthropic();
+    const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
