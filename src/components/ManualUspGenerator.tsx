@@ -7,6 +7,7 @@ interface ManualUsp {
   image_url: string;
   image_alt: string;
   isGenerating?: boolean;
+  isGeneratingAlt?: boolean;
 }
 
 interface IntroMedia {
@@ -44,6 +45,7 @@ const createEmptyUsp = (): ManualUsp => ({
   image_url: '',
   image_alt: '',
   isGenerating: false,
+  isGeneratingAlt: false,
 });
 
 export default function ManualUspGenerator() {
@@ -85,6 +87,7 @@ export default function ManualUspGenerator() {
   const [rovidLeiras, setRovidLeiras] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [copied, setCopied] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
 
   const canGenerate = productInfo.termek_nev.trim() && productInfo.gyarto.trim();
 
@@ -120,16 +123,20 @@ export default function ManualUspGenerator() {
 
   const generateText = async (type: string, uspIndex?: number, uspTitle?: string) => {
     if (!canGenerate) {
-      alert('Először add meg a termék nevét és gyártóját!');
+      setShowValidation(true);
       return;
     }
 
     if (type === 'usp' && uspIndex !== undefined) {
       if (!uspTitle?.trim()) {
-        alert('Először add meg az USP címét!');
         return;
       }
       updateUsp(uspIndex, 'isGenerating', true);
+    } else if (type === 'image_alt' && uspIndex !== undefined) {
+      if (!uspTitle?.trim()) {
+        return;
+      }
+      updateUsp(uspIndex, 'isGeneratingAlt', true);
     } else {
       setIntroGenerating(prev => ({ ...prev, [type]: true }));
     }
@@ -149,10 +156,12 @@ export default function ManualUspGenerator() {
       const data = await response.json();
 
       if (data.error) {
-        alert(`Hiba: ${data.error}`);
+        alert(data.error);
       } else if (data.text) {
         if (type === 'usp' && uspIndex !== undefined) {
           updateUsp(uspIndex, 'paragraph', data.text);
+        } else if (type === 'image_alt' && uspIndex !== undefined) {
+          updateUsp(uspIndex, 'image_alt', data.text);
         } else if (type === 'intro_title') {
           setIntroText(prev => ({ ...prev, title: data.text }));
         } else if (type === 'intro_p1') {
@@ -165,32 +174,41 @@ export default function ManualUspGenerator() {
       }
     } catch (error) {
       console.error('Generate error:', error);
-      alert('Hiba történt a szöveg generálása közben');
+      alert('Hálózati hiba történt. Ellenőrizd az internet kapcsolatot.');
     } finally {
       if (type === 'usp' && uspIndex !== undefined) {
         updateUsp(uspIndex, 'isGenerating', false);
+      } else if (type === 'image_alt' && uspIndex !== undefined) {
+        updateUsp(uspIndex, 'isGeneratingAlt', false);
       } else {
         setIntroGenerating(prev => ({ ...prev, [type]: false }));
       }
     }
   };
 
-  const isFormValid = (): boolean => {
-    if (!productInfo.termek_nev.trim() || !productInfo.gyarto.trim()) {
-      return false;
-    }
-
-    const filledUsps = usps.filter(usp =>
+  const getFilledUsps = () => {
+    return usps.filter(usp =>
       usp.title.trim() &&
       usp.paragraph.trim() &&
       usp.image_url.trim() &&
       usp.image_alt.trim()
     );
+  };
 
-    return filledUsps.length >= 3;
+  const isFormValid = (): boolean => {
+    if (!productInfo.termek_nev.trim() || !productInfo.gyarto.trim()) {
+      return false;
+    }
+    return getFilledUsps().length >= 3;
   };
 
   const generateHtml = () => {
+    setShowValidation(true);
+
+    if (!isFormValid()) {
+      return;
+    }
+
     const { termek_nev, gyarto, pdf_url, meretrajz_url } = productInfo;
 
     const shortDesc = `A ${termek_nev} ${gyarto} ventilátor megbízható teljesítményével ideális választás fürdőszobák és mellékhelyiségek szellőztetésére.`;
@@ -243,12 +261,7 @@ export default function ManualUspGenerator() {
 
     parts.push('<div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #333; margin-bottom: 20px;"><h1 style="margin: 0;">Miért ajánljuk?</h1></div>');
 
-    const filledUsps = usps.filter(usp =>
-      usp.title.trim() &&
-      usp.paragraph.trim() &&
-      usp.image_url.trim() &&
-      usp.image_alt.trim()
-    );
+    const filledUsps = getFilledUsps();
 
     filledUsps.forEach((usp, index) => {
       const isLast = index === filledUsps.length - 1;
@@ -282,19 +295,28 @@ export default function ManualUspGenerator() {
     setUsps([createEmptyUsp(), createEmptyUsp(), createEmptyUsp()]);
     setHtmlOutput('');
     setRovidLeiras('');
+    setShowValidation(false);
   };
 
-  const filledUspCount = usps.filter(usp => usp.title.trim() && usp.paragraph.trim()).length;
+  const filledUspCount = getFilledUsps().length;
 
-  const AiButton = ({ onClick, isGenerating, disabled }: { onClick: () => void; isGenerating: boolean; disabled?: boolean }) => (
+  const isFieldError = (value: string) => showValidation && !value.trim();
+
+  const inputStyle = (hasError: boolean) => ({
+    borderColor: hasError ? 'var(--color-danger, #ef4444)' : undefined,
+    boxShadow: hasError ? '0 0 0 2px rgba(239, 68, 68, 0.2)' : undefined,
+  });
+
+  const AiButton = ({ onClick, isGenerating, disabled, label = 'AI' }: { onClick: () => void; isGenerating: boolean; disabled?: boolean; label?: string }) => (
     <button
       type="button"
       className="btn btn-secondary"
       onClick={onClick}
       disabled={isGenerating || disabled || !canGenerate}
       style={{ padding: '4px 12px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+      title={!canGenerate ? 'Először add meg a termék nevét és gyártóját!' : undefined}
     >
-      {isGenerating ? 'Generálás...' : 'AI'}
+      {isGenerating ? 'Generálás...' : label}
     </button>
   );
 
@@ -303,6 +325,20 @@ export default function ManualUspGenerator() {
       {/* Product Info Card */}
       <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
         <h2 style={{ margin: '0 0 var(--space-md)', fontSize: '1.25rem' }}>Termék adatok</h2>
+
+        {showValidation && !canGenerate && (
+          <div style={{
+            padding: 'var(--space-sm) var(--space-md)',
+            marginBottom: 'var(--space-md)',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid var(--color-danger, #ef4444)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--color-danger, #ef4444)',
+            fontSize: '0.875rem'
+          }}>
+            A termék neve és gyártó kötelező mezők!
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
           <div className="form-group">
@@ -313,6 +349,7 @@ export default function ManualUspGenerator() {
               value={productInfo.termek_nev}
               onChange={(e) => setProductInfo({ ...productInfo, termek_nev: e.target.value })}
               placeholder="pl. Elicent E-Style 100 PRO"
+              style={inputStyle(isFieldError(productInfo.termek_nev))}
             />
           </div>
 
@@ -324,6 +361,7 @@ export default function ManualUspGenerator() {
               value={productInfo.gyarto}
               onChange={(e) => setProductInfo({ ...productInfo, gyarto: e.target.value })}
               placeholder="pl. Elicent"
+              style={inputStyle(isFieldError(productInfo.gyarto))}
             />
           </div>
 
@@ -499,6 +537,20 @@ export default function ManualUspGenerator() {
           </div>
         </div>
 
+        {showValidation && filledUspCount < 3 && (
+          <div style={{
+            padding: 'var(--space-sm) var(--space-md)',
+            marginBottom: 'var(--space-md)',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid var(--color-danger, #ef4444)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--color-danger, #ef4444)',
+            fontSize: '0.875rem'
+          }}>
+            Legalább 3 teljes USP szükséges (cím + szöveg + kép URL + alt szöveg)!
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
           {usps.map((usp, index) => (
             <div
@@ -584,7 +636,15 @@ export default function ManualUspGenerator() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Kép alt szöveg *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Kép alt szöveg *</label>
+                    <AiButton
+                      onClick={() => generateText('image_alt', index, usp.title)}
+                      isGenerating={usp.isGeneratingAlt || false}
+                      disabled={!usp.title.trim()}
+                      label="AI SEO"
+                    />
+                  </div>
                   <input
                     type="text"
                     className="form-input"
@@ -605,16 +665,13 @@ export default function ManualUspGenerator() {
           <button
             className="btn btn-primary"
             onClick={generateHtml}
-            disabled={!isFormValid()}
             style={{ width: '100%' }}
           >
             HTML generálása
           </button>
-          {!isFormValid() && (
-            <p style={{ margin: 'var(--space-sm) 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-              Töltsd ki a termék nevét, gyártót és legalább 3 USP-t (cím + szöveg + kép)
-            </p>
-          )}
+          <p style={{ margin: 'var(--space-sm) 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+            Szükséges: termék neve, gyártó, és legalább 3 teljes USP
+          </p>
         </div>
       )}
 
