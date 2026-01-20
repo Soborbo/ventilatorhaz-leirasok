@@ -9,6 +9,20 @@ interface ManualUsp {
   image_alt: string;
 }
 
+interface IntroMedia {
+  type: 'video' | 'image';
+  video_url: string;
+  image_url: string;
+  image_alt: string;
+}
+
+interface IntroText {
+  title: string;
+  paragraph_1: string;
+  paragraph_2: string;
+  tudta: string;
+}
+
 interface ProductInfo {
   termek_nev: string;
   gyarto: string;
@@ -31,6 +45,20 @@ export default function ManualUspGenerator() {
     gyarto: '',
     pdf_url: '',
     meretrajz_url: '',
+  });
+
+  const [introMedia, setIntroMedia] = useState<IntroMedia>({
+    type: 'video',
+    video_url: '',
+    image_url: '',
+    image_alt: '',
+  });
+
+  const [introText, setIntroText] = useState<IntroText>({
+    title: '',
+    paragraph_1: '',
+    paragraph_2: '',
+    tudta: '',
   });
 
   const [usps, setUsps] = useState<ManualUsp[]>([
@@ -104,10 +132,28 @@ export default function ManualUspGenerator() {
 
     // Intro section
     parts.push('<div class="intro-video-section">');
+
+    // Media column (video or image)
+    if (introMedia.type === 'video' && introMedia.video_url.trim()) {
+      parts.push('<div class="intro-video-col">');
+      parts.push('<div class="video-wrapper">');
+      parts.push(`<iframe src="${introMedia.video_url}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen=""></iframe>`);
+      parts.push('</div></div>');
+    } else if (introMedia.type === 'image' && introMedia.image_url.trim()) {
+      parts.push('<div class="intro-video-col">');
+      parts.push(`<img src="${introMedia.image_url}" alt="${introMedia.image_alt || termek_nev}" style="width: 100%; height: auto; border-radius: 8px;">`);
+      parts.push('</div>');
+    }
+
+    // Text column
     parts.push('<div class="intro-text-col">');
-    parts.push(`<h3>${termek_nev}: Megbízható ${gyarto} minőség</h3>`);
-    parts.push(`<p>A ${termek_nev} kiválóan alkalmas fürdőszobák párátlanítására, kisebb helyiségek szellőztetésére.</p>`);
-    parts.push(`<p>Kompakt kialakításának köszönhetően könnyen felszerelhető és hosszú éveken át megbízhatóan működik.</p>`);
+    const introTitle = introText.title.trim() || `${termek_nev}: Megbízható ${gyarto} minőség`;
+    const introPara1 = introText.paragraph_1.trim() || `A ${termek_nev} kiválóan alkalmas fürdőszobák párátlanítására, kisebb helyiségek szellőztetésére.`;
+    const introPara2 = introText.paragraph_2.trim() || `Kompakt kialakításának köszönhetően könnyen felszerelhető és hosszú éveken át megbízhatóan működik.`;
+
+    parts.push(`<h3>${introTitle}</h3>`);
+    parts.push(`<p>${introPara1}</p>`);
+    parts.push(`<p>${introPara2}</p>`);
     parts.push('</div></div>');
 
     // Gyári adatlap
@@ -122,8 +168,9 @@ export default function ManualUspGenerator() {
     parts.push('</div>');
 
     // Tudta
+    const tudtaText = introText.tudta.trim() || `A ${gyarto} az egyik legmegbízhatóbb európai légtechnikai gyártó.`;
     parts.push('<div class="tudta"><div class="tudta-ikon">i</div><div class="tudta-tartalom">');
-    parts.push(`<p><strong>Tudta?</strong> A ${gyarto} az egyik legmegbízhatóbb európai légtechnikai gyártó.</p>`);
+    parts.push(`<p><strong>Tudta?</strong> ${tudtaText}</p>`);
     parts.push('</div></div></div>');
 
     // Ventilátorház bemutatkozó (fixed)
@@ -178,6 +225,18 @@ export default function ManualUspGenerator() {
       gyarto: '',
       pdf_url: '',
       meretrajz_url: '',
+    });
+    setIntroMedia({
+      type: 'video',
+      video_url: '',
+      image_url: '',
+      image_alt: '',
+    });
+    setIntroText({
+      title: '',
+      paragraph_1: '',
+      paragraph_2: '',
+      tudta: '',
     });
     setUsps([createEmptyUsp(), createEmptyUsp(), createEmptyUsp()]);
     setHtmlOutput('');
@@ -236,6 +295,124 @@ export default function ManualUspGenerator() {
               value={productInfo.meretrajz_url}
               onChange={(e) => setProductInfo({ ...productInfo, meretrajz_url: e.target.value })}
               placeholder="https://..."
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Intro Section Card */}
+      <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
+        <h2 style={{ margin: '0 0 var(--space-md)', fontSize: '1.25rem' }}>Bevezető szekció</h2>
+
+        {/* Media Type Toggle */}
+        <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
+          <label className="form-label">Média típusa</label>
+          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+            <button
+              type="button"
+              className={`btn ${introMedia.type === 'video' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setIntroMedia({ ...introMedia, type: 'video' })}
+              style={{ flex: 1 }}
+            >
+              Videó
+            </button>
+            <button
+              type="button"
+              className={`btn ${introMedia.type === 'image' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setIntroMedia({ ...introMedia, type: 'image' })}
+              style={{ flex: 1 }}
+            >
+              Kép
+            </button>
+          </div>
+        </div>
+
+        {/* Media Input */}
+        {introMedia.type === 'video' ? (
+          <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
+            <label className="form-label">YouTube embed URL (opcionális)</label>
+            <input
+              type="url"
+              className="form-input"
+              value={introMedia.video_url}
+              onChange={(e) => setIntroMedia({ ...introMedia, video_url: e.target.value })}
+              placeholder="https://www.youtube.com/embed/xxxxx"
+            />
+            <p style={{ margin: 'var(--space-xs) 0 0', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              Használd az embed formátumot: youtube.com/embed/VIDEO_ID
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+            <div className="form-group">
+              <label className="form-label">Kép URL (opcionális)</label>
+              <input
+                type="url"
+                className="form-input"
+                value={introMedia.image_url}
+                onChange={(e) => setIntroMedia({ ...introMedia, image_url: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Kép alt szöveg</label>
+              <input
+                type="text"
+                className="form-input"
+                value={introMedia.image_alt}
+                onChange={(e) => setIntroMedia({ ...introMedia, image_alt: e.target.value })}
+                placeholder="pl. Elicent E-Style ventilátor"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Intro Text */}
+        <div style={{ display: 'grid', gap: 'var(--space-md)' }}>
+          <div className="form-group">
+            <label className="form-label">Bevezető cím (opcionális)</label>
+            <input
+              type="text"
+              className="form-input"
+              value={introText.title}
+              onChange={(e) => setIntroText({ ...introText, title: e.target.value })}
+              placeholder={`Alapértelmezett: "${productInfo.termek_nev || '[Termék neve]'}: Megbízható ${productInfo.gyarto || '[Gyártó]'} minőség"`}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">1. bekezdés (opcionális)</label>
+            <textarea
+              className="form-input"
+              value={introText.paragraph_1}
+              onChange={(e) => setIntroText({ ...introText, paragraph_1: e.target.value })}
+              placeholder="Alapértelmezett: A [termék] kiválóan alkalmas fürdőszobák párátlanítására..."
+              rows={2}
+              style={{ resize: 'vertical' }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">2. bekezdés (opcionális)</label>
+            <textarea
+              className="form-input"
+              value={introText.paragraph_2}
+              onChange={(e) => setIntroText({ ...introText, paragraph_2: e.target.value })}
+              placeholder="Alapértelmezett: Kompakt kialakításának köszönhetően..."
+              rows={2}
+              style={{ resize: 'vertical' }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">"Tudta?" szöveg (opcionális)</label>
+            <textarea
+              className="form-input"
+              value={introText.tudta}
+              onChange={(e) => setIntroText({ ...introText, tudta: e.target.value })}
+              placeholder={`Alapértelmezett: "A ${productInfo.gyarto || '[Gyártó]'} az egyik legmegbízhatóbb európai légtechnikai gyártó."`}
+              rows={2}
+              style={{ resize: 'vertical' }}
             />
           </div>
         </div>
