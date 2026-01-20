@@ -3,10 +3,10 @@ import { useState } from 'react';
 interface ManualUsp {
   id: string;
   title: string;
-  paragraph_1: string;
-  paragraph_2: string;
+  paragraph: string;
   image_url: string;
   image_alt: string;
+  isGenerating?: boolean;
 }
 
 interface IntroMedia {
@@ -33,10 +33,10 @@ interface ProductInfo {
 const createEmptyUsp = (): ManualUsp => ({
   id: crypto.randomUUID(),
   title: '',
-  paragraph_1: '',
-  paragraph_2: '',
+  paragraph: '',
   image_url: '',
   image_alt: '',
+  isGenerating: false,
 });
 
 export default function ManualUspGenerator() {
@@ -84,7 +84,7 @@ export default function ManualUspGenerator() {
     }
   };
 
-  const updateUsp = (index: number, field: keyof ManualUsp, value: string) => {
+  const updateUsp = (index: number, field: keyof ManualUsp, value: string | boolean) => {
     const newUsps = [...usps];
     newUsps[index] = { ...newUsps[index], [field]: value };
     setUsps(newUsps);
@@ -102,6 +102,46 @@ export default function ManualUspGenerator() {
     }
   };
 
+  const generateUspText = async (index: number) => {
+    const usp = usps[index];
+    if (!usp.title.trim()) {
+      alert('Először add meg az USP címét!');
+      return;
+    }
+
+    if (!productInfo.termek_nev.trim() || !productInfo.gyarto.trim()) {
+      alert('Először add meg a termék nevét és gyártóját!');
+      return;
+    }
+
+    updateUsp(index, 'isGenerating', true);
+
+    try {
+      const response = await fetch('/api/generate-usp-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usp_title: usp.title,
+          termek_nev: productInfo.termek_nev,
+          gyarto: productInfo.gyarto,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        alert(`Hiba: ${data.error}`);
+      } else if (data.text) {
+        updateUsp(index, 'paragraph', data.text);
+      }
+    } catch (error) {
+      console.error('Generate error:', error);
+      alert('Hiba történt a szöveg generálása közben');
+    } finally {
+      updateUsp(index, 'isGenerating', false);
+    }
+  };
+
   const isFormValid = (): boolean => {
     if (!productInfo.termek_nev.trim() || !productInfo.gyarto.trim()) {
       return false;
@@ -109,7 +149,7 @@ export default function ManualUspGenerator() {
 
     const filledUsps = usps.filter(usp =>
       usp.title.trim() &&
-      usp.paragraph_1.trim() &&
+      usp.paragraph.trim() &&
       usp.image_url.trim() &&
       usp.image_alt.trim()
     );
@@ -185,7 +225,7 @@ export default function ManualUspGenerator() {
     // USP blocks - only include filled ones
     const filledUsps = usps.filter(usp =>
       usp.title.trim() &&
-      usp.paragraph_1.trim() &&
+      usp.paragraph.trim() &&
       usp.image_url.trim() &&
       usp.image_alt.trim()
     );
@@ -196,10 +236,7 @@ export default function ManualUspGenerator() {
 
       parts.push(`<div class="feature-row"${style}>`);
       parts.push(`<div class="feature-col feature-image"><img src="${usp.image_url}" alt="${usp.image_alt}" style="width: 100%; display: block; border-radius: 8px;"></div>`);
-      parts.push(`<div class="feature-col feature-text"><h3>${usp.title}</h3><p>${usp.paragraph_1}</p>`);
-      if (usp.paragraph_2.trim()) {
-        parts.push(`<p>${usp.paragraph_2}</p>`);
-      }
+      parts.push(`<div class="feature-col feature-text"><h3>${usp.title}</h3><p>${usp.paragraph}</p>`);
       parts.push('</div></div>');
     });
 
@@ -244,7 +281,7 @@ export default function ManualUspGenerator() {
   };
 
   const filledUspCount = usps.filter(usp =>
-    usp.title.trim() && usp.paragraph_1.trim()
+    usp.title.trim() && usp.paragraph.trim()
   ).length;
 
   return (
@@ -491,24 +528,30 @@ export default function ManualUspGenerator() {
                 </div>
 
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">1. bekezdés *</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-xs)' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Szöveg *</label>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => generateUspText(index)}
+                      disabled={usp.isGenerating || !usp.title.trim()}
+                      style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                    >
+                      {usp.isGenerating ? (
+                        <>
+                          <span className="spinner" style={{ width: '12px', height: '12px', marginRight: '4px' }}></span>
+                          Generálás...
+                        </>
+                      ) : (
+                        'AI generálás'
+                      )}
+                    </button>
+                  </div>
                   <textarea
                     className="form-input"
-                    value={usp.paragraph_1}
-                    onChange={(e) => updateUsp(index, 'paragraph_1', e.target.value)}
-                    placeholder="Az első bekezdés szövege..."
-                    rows={3}
-                    style={{ resize: 'vertical' }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">2. bekezdés (opcionális)</label>
-                  <textarea
-                    className="form-input"
-                    value={usp.paragraph_2}
-                    onChange={(e) => updateUsp(index, 'paragraph_2', e.target.value)}
-                    placeholder="A második bekezdés szövege..."
+                    value={usp.paragraph}
+                    onChange={(e) => updateUsp(index, 'paragraph', e.target.value)}
+                    placeholder="A bekezdés szövege... (vagy használd az AI generálást)"
                     rows={3}
                     style={{ resize: 'vertical' }}
                   />
@@ -554,7 +597,7 @@ export default function ManualUspGenerator() {
           </button>
           {!isFormValid() && (
             <p style={{ margin: 'var(--space-sm) 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-              Töltsd ki a termék nevét, gyártót és legalább 3 USP-t
+              Töltsd ki a termék nevét, gyártót és legalább 3 USP-t (cím + szöveg + kép)
             </p>
           )}
         </div>
