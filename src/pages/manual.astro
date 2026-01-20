@@ -1,0 +1,13 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ManualUspGenerator from '../components/ManualUspGenerator';
+---
+
+<Layout title="Kézi USP bevitel" activePhase={0}>
+  <div class="page-header" style="margin-bottom: var(--space-xl);">
+    <h1>Kézi USP bevitel</h1>
+    <p style="color: var(--color-text-muted); margin: 0;">Add meg a termék adatait és 3-7 USP-t kézzel, majd generáld le a HTML-t.</p>
+  </div>
+
+  <ManualUspGenerator client:load />
+</Layout>
