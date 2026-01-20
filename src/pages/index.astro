@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import DataExtractor from '../components/DataExtractor';
+import BatchLinkCollector from '../components/BatchLinkCollector';
 ---
 
 <Layout title="Adat extrakció" activePhase={1}>
@@ -8,6 +9,72 @@ import DataExtractor from '../components/DataExtractor';
     <h1>Adat extrakció</h1>
     <p style="color: var(--color-text-muted); margin: 0;">Töltsd fel a gyártói PDF-et vagy add meg a linket, és az AI kiszedi a műszaki adatokat.</p>
   </div>
-  
-  <DataExtractor client:load />
+
+  <div id="mode-switcher" style="margin-bottom: var(--space-lg);">
+    <div class="btn-group" role="group" style="display: inline-flex; gap: 0; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden;">
+      <button
+        id="btn-single"
+        class="mode-btn active"
+        style="
+          padding: var(--space-sm) var(--space-lg);
+          border: none;
+          background: var(--color-primary);
+          color: white;
+          cursor: pointer;
+          font-weight: 500;
+          transition: all 0.2s;
+        "
+      >
+        📄 Egyszeres mód
+      </button>
+      <button
+        id="btn-batch"
+        class="mode-btn"
+        style="
+          padding: var(--space-sm) var(--space-lg);
+          border: none;
+          background: white;
+          color: var(--color-text);
+          cursor: pointer;
+          font-weight: 500;
+          transition: all 0.2s;
+        "
+      >
+        📦 Batch link gyűjtés (20 termék)
+      </button>
+    </div>
+  </div>
+
+  <div id="single-mode" style="display: block;">
+    <DataExtractor client:load />
+  </div>
+
+  <div id="batch-mode" style="display: none;">
+    <BatchLinkCollector client:load />
+  </div>
+
+  <script>
+    const btnSingle = document.getElementById('btn-single');
+    const btnBatch = document.getElementById('btn-batch');
+    const singleMode = document.getElementById('single-mode');
+    const batchMode = document.getElementById('batch-mode');
+
+    btnSingle?.addEventListener('click', () => {
+      btnSingle.style.background = 'var(--color-primary)';
+      btnSingle.style.color = 'white';
+      btnBatch!.style.background = 'white';
+      btnBatch!.style.color = 'var(--color-text)';
+      singleMode!.style.display = 'block';
+      batchMode!.style.display = 'none';
+    });
+
+    btnBatch?.addEventListener('click', () => {
+      btnBatch.style.background = 'var(--color-primary)';
+      btnBatch.style.color = 'white';
+      btnSingle!.style.background = 'white';
+      btnSingle!.style.color = 'var(--color-text)';
+      singleMode!.style.display = 'none';
+      batchMode!.style.display = 'block';
+    });
+  </script>
 </Layout>
